@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { Check, Search, ChevronDown, ChevronRight } from "lucide-svelte";
   import ModalContainer from "./ModalContainer.svelte";
   import { keyStore } from "$lib/stores/keys.svelte";
@@ -23,8 +24,11 @@
     localStorage.setItem("recipient-show-contacts", String(showContacts));
   });
 
-  // If text is provided via modal props, encrypt that instead of clipboard
+  // If text is provided via modal props, encrypt that instead of clipboard.
+  // Captured up front: closeModal() clears modalProps before this unmounts.
   let textToEncrypt = appStore.modalProps.text ?? null;
+  const onDismiss = appStore.modalProps.onDismiss;
+  onDestroy(() => onDismiss?.());
 
   // Compute initial selection from encrypt-to-self settings
   function getInitialSelection(): Set<string> {
