@@ -50,6 +50,7 @@ pub fn export_key_bundle(
             public_key: key.pgp_data.clone(),
             secret_key,
             trust_level: key.trust_level,
+            alias: key.alias.clone(),
         });
     }
 
@@ -184,7 +185,10 @@ pub fn import_key_bundle(
             trust_level: entry.trust_level,
             is_own_key: entry.secret_key.is_some(),
             is_revoked: cert_info.is_revoked,
-            alias: existing.as_ref().and_then(|key| key.alias.clone()),
+            alias: entry
+                .alias
+                .clone()
+                .or_else(|| existing.as_ref().and_then(|key| key.alias.clone())),
             pgp_data: entry.public_key.clone(),
         };
 

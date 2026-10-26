@@ -97,6 +97,9 @@ pub struct KeyBundleEntry {
     pub secret_key: Option<Vec<u8>>,
     /// Trust level.
     pub trust_level: i32,
+    /// Local alias. Missing in bundles written before aliases existed.
+    #[serde(default)]
+    pub alias: Option<String>,
 }
 
 impl Drop for KeyBundleEntry {
@@ -610,12 +613,14 @@ mod tests {
                     public_key: vec![0x99, 0x01, 0x02, 0x03],
                     secret_key: Some(vec![0x95, 0x04, 0x05, 0x06]),
                     trust_level: 2,
+                    alias: None,
                 },
                 KeyBundleEntry {
                     fingerprint: "EEFF0011".into(),
                     public_key: vec![0x99, 0x07, 0x08, 0x09],
                     secret_key: None,
                     trust_level: 1,
+                    alias: None,
                 },
             ],
         };
@@ -649,6 +654,32 @@ mod tests {
         let bundle: KeyBundle = serde_json::from_str(v1_json).unwrap();
         assert_eq!(bundle.keys[0].public_key, vec![153, 1, 2, 3]);
         assert!(bundle.keys[0].secret_key.is_none());
+        assert!(bundle.keys[0].alias.is_none());
+    }
+
+    #[test]
+    fn test_bundle_v2_without_alias_deserializes() {
+        let json = r#"{"version":2,"keys":[{"fingerprint":"AABB","public_key":"mQECAw==","secret_key":null,"trust_level":0}]}"#;
+        let bundle: KeyBundle = serde_json::from_str(json).unwrap();
+        assert!(bundle.keys[0].alias.is_none());
+        assert_eq!(bundle.keys[0].public_key, vec![0x99, 0x01, 0x02, 0x03]);
+    }
+
+    #[test]
+    fn test_bundle_alias_round_trip() {
+        let bundle = KeyBundle {
+            version: 2,
+            keys: vec![KeyBundleEntry {
+                fingerprint: "AABB".into(),
+                public_key: vec![0x99, 0x01, 0x02, 0x03],
+                secret_key: None,
+                trust_level: 1,
+                alias: Some("Workbench".into()),
+            }],
+        };
+        let json = serde_json::to_string(&bundle).unwrap();
+        let restored: KeyBundle = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.keys[0].alias.as_deref(), Some("Workbench"));
     }
 
     #[test]
@@ -661,12 +692,14 @@ mod tests {
                     public_key: vec![0x99, 0x01, 0x02, 0x03],
                     secret_key: Some(vec![0x95, 0x04, 0x05, 0x06]),
                     trust_level: 2,
+                    alias: None,
                 },
                 KeyBundleEntry {
                     fingerprint: "EEFF0011".into(),
                     public_key: vec![0x99, 0x07, 0x08, 0x09],
                     secret_key: None,
                     trust_level: 1,
+                    alias: None,
                 },
             ],
         };
