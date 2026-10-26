@@ -2,10 +2,10 @@
 
 ## Getting Help
 
-- **Bug reports**: [Open an issue](https://github.com/keychainpgp/keychainpgp/issues/new?template=bug_report.yml)
-- **Feature requests**: [Open an issue](https://github.com/keychainpgp/keychainpgp/issues/new?template=feature_request.yml)
-- **Security vulnerabilities**: Email **keychainpgp@protonmail.com** (see [SECURITY.md](SECURITY.md))
-- **General questions**: [GitHub Discussions](https://github.com/keychainpgp/keychainpgp/discussions)
+- **Bug reports**: [Open an issue](https://github.com/thehoegh/keychainpgp/issues/new?template=bug_report.yml)
+- **Feature requests**: [Open an issue](https://github.com/thehoegh/keychainpgp/issues/new?template=feature_request.yml)
+- **Security vulnerabilities**: [Report privately](https://github.com/thehoegh/keychainpgp/security/advisories/new) (see [SECURITY.md](SECURITY.md))
+- **General questions**: [GitHub Discussions](https://github.com/thehoegh/keychainpgp/discussions)
 
 ## Documentation
 
@@ -15,6 +15,6 @@
 
 ## Before Opening an Issue
 
-1. Search [existing issues](https://github.com/keychainpgp/keychainpgp/issues) to avoid duplicates
+1. Search [existing issues](https://github.com/thehoegh/keychainpgp/issues) to avoid duplicates
 2. Include your OS, KeychainPGP version, and steps to reproduce
 3. For cryptographic issues, never paste private keys or passphrases
