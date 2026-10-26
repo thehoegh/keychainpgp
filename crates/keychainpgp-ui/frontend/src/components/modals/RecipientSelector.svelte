@@ -7,7 +7,7 @@
   import { appStore } from "$lib/stores/app.svelte";
   import { clipboardStore } from "$lib/stores/clipboard.svelte";
   import { encryptClipboard, encryptText, writeClipboard } from "$lib/tauri";
-  import { shortFingerprint } from "$lib/utils";
+  import { keyLabel, keySecondary, shortFingerprint } from "$lib/utils";
   import type { KeyInfo } from "$lib/tauri";
   import * as m from "$lib/paraglide/messages.js";
 
@@ -50,6 +50,7 @@
     if (!searchQuery) return true;
     const q = searchQuery.toLowerCase();
     return (
+      (k.alias?.toLowerCase().includes(q) ?? false) ||
       (k.name?.toLowerCase().includes(q) ?? false) ||
       (k.email?.toLowerCase().includes(q) ?? false) ||
       k.fingerprint.toLowerCase().includes(q)
@@ -184,9 +185,9 @@
                       {/if}
                     </div>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">{k.name ?? m.unnamed()}</p>
+                      <p class="truncate text-sm font-medium">{keyLabel(k)}</p>
                       <p class="truncate text-xs text-[var(--color-text-secondary)]">
-                        {k.email ?? shortFingerprint(k.fingerprint)}
+                        {keySecondary(k, shortFingerprint(k.fingerprint))}
                       </p>
                     </div>
                   </button>
@@ -242,9 +243,9 @@
                       {/if}
                     </div>
                     <div class="min-w-0 flex-1">
-                      <p class="truncate text-sm font-medium">{k.name ?? m.unnamed()}</p>
+                      <p class="truncate text-sm font-medium">{keyLabel(k)}</p>
                       <p class="truncate text-xs text-[var(--color-text-secondary)]">
-                        {k.email ?? shortFingerprint(k.fingerprint)}
+                        {keySecondary(k, shortFingerprint(k.fingerprint))}
                       </p>
                     </div>
                   </button>

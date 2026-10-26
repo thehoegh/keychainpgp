@@ -1,9 +1,15 @@
 <script lang="ts">
   import { settingsStore } from "$lib/stores/settings.svelte";
-  import { clearPassphraseCache, enableOpsecMode, disableOpsecMode, testProxyConnection, isPortable as checkPortable } from "$lib/tauri";
+  import {
+    clearPassphraseCache,
+    enableOpsecMode,
+    disableOpsecMode,
+    testProxyConnection,
+    isPortable as checkPortable,
+  } from "$lib/tauri";
   import { appStore } from "$lib/stores/app.svelte";
   import { keyStore } from "$lib/stores/keys.svelte";
-  import { shortFingerprint } from "$lib/utils";
+  import { keyLabel, keySecondary, shortFingerprint } from "$lib/utils";
   import { isDesktop } from "$lib/platform";
   import { changeLocale, localeStore } from "$lib/stores/locale.svelte";
   import { RefreshCw, Shield, Globe, Heart, HardDrive } from "lucide-svelte";
@@ -12,7 +18,11 @@
   const desktop = isDesktop();
   let portable = $state(false);
   if (desktop) {
-    checkPortable().then(v => { portable = v; }).catch(() => {});
+    checkPortable()
+      .then((v) => {
+        portable = v;
+      })
+      .catch(() => {});
   }
 
   let proxyTesting = $state(false);
@@ -46,7 +56,7 @@
   function toggleSelfKey(fp: string) {
     let current = settingsStore.settings.encrypt_to_self_keys;
     if (current.length === 0) {
-      current = keyStore.ownKeys.map(k => k.fingerprint);
+      current = keyStore.ownKeys.map((k) => k.fingerprint);
     }
     const next = current.includes(fp) ? current.filter((k) => k !== fp) : [...current, fp];
     const allOwn = keyStore.ownKeys.map((k) => k.fingerprint);
@@ -54,7 +64,14 @@
     settingsStore.save({ encrypt_to_self_keys: isAll ? [] : next });
   }
 
-  function toggle(key: "auto_clear_enabled" | "clipboard_monitoring" | "encrypt_to_self" | "auto_clear_after_encrypt" | "include_armor_headers") {
+  function toggle(
+    key:
+      | "auto_clear_enabled"
+      | "clipboard_monitoring"
+      | "encrypt_to_self"
+      | "auto_clear_after_encrypt"
+      | "include_armor_headers",
+  ) {
     settingsStore.save({ [key]: !settingsStore.settings[key] });
   }
 
@@ -191,7 +208,9 @@
       >
         <div>
           <p class="text-sm font-medium">{m.settings_close_to_tray_label()}</p>
-          <p class="text-xs text-[var(--color-text-secondary)]">{m.settings_close_to_tray_desc()}</p>
+          <p class="text-xs text-[var(--color-text-secondary)]">
+            {m.settings_close_to_tray_desc()}
+          </p>
         </div>
         <input
           type="checkbox"
@@ -243,7 +262,9 @@
       >
         <div>
           <p class="text-sm font-medium">{m.settings_auto_clear_delay_label()}</p>
-          <p class="text-xs text-[var(--color-text-secondary)]">{m.settings_auto_clear_delay_desc()}</p>
+          <p class="text-xs text-[var(--color-text-secondary)]">
+            {m.settings_auto_clear_delay_desc()}
+          </p>
         </div>
         <input
           type="checkbox"
@@ -289,7 +310,9 @@
     >
       <div>
         <p class="text-sm font-medium">{m.settings_encrypt_to_self_label()}</p>
-        <p class="text-xs text-[var(--color-text-secondary)]">{m.settings_encrypt_to_self_desc()}</p>
+        <p class="text-xs text-[var(--color-text-secondary)]">
+          {m.settings_encrypt_to_self_desc()}
+        </p>
       </div>
       <input
         type="checkbox"
@@ -307,7 +330,9 @@
           {:else if settingsStore.settings.encrypt_to_self_keys.length === 1}
             {m.settings_self_keys_count_one()}
           {:else}
-            {m.settings_self_keys_count_other({ count: settingsStore.settings.encrypt_to_self_keys.length })}
+            {m.settings_self_keys_count_other({
+              count: settingsStore.settings.encrypt_to_self_keys.length,
+            })}
           {/if}
         </p>
         <div class="space-y-1">
@@ -323,9 +348,9 @@
                 class="h-3.5 w-3.5 accent-[var(--color-primary)]"
               />
               <div class="min-w-0 flex-1">
-                <p class="truncate text-sm">{k.name ?? m.unnamed()}</p>
+                <p class="truncate text-sm">{keyLabel(k)}</p>
                 <p class="truncate text-xs text-[var(--color-text-secondary)]">
-                  {k.email ?? shortFingerprint(k.fingerprint)}
+                  {keySecondary(k, shortFingerprint(k.fingerprint))}
                 </p>
               </div>
             </label>
@@ -361,7 +386,9 @@
     >
       <div>
         <p class="text-sm font-medium">{m.settings_passphrase_cache_label()}</p>
-        <p class="text-xs text-[var(--color-text-secondary)]">{m.settings_passphrase_cache_desc()}</p>
+        <p class="text-xs text-[var(--color-text-secondary)]">
+          {m.settings_passphrase_cache_desc()}
+        </p>
       </div>
       <input
         type="number"
@@ -456,7 +483,6 @@
         </label>
       {/if}
     </section>
-
   {/if}
 
   <!-- Key Discovery -->
@@ -484,20 +510,24 @@
       />
     </label>
 
-    <label class="flex items-center justify-between p-3 rounded-lg border border-[var(--color-border)]">
+    <label
+      class="flex items-center justify-between rounded-lg border border-[var(--color-border)] p-3"
+    >
       <div>
         <p class="text-sm font-medium">{m.settings_unverified_keyserver_label()}</p>
         <p class="text-xs text-[var(--color-text-secondary)]">
           {m.settings_unverified_keyserver_desc()}
-          <span class="block mt-1 text-[var(--color-danger)] font-medium">{m.settings_unverified_keyservers_warning()}</span>
+          <span class="mt-1 block font-medium text-[var(--color-danger)]"
+            >{m.settings_unverified_keyservers_warning()}</span
+          >
         </p>
       </div>
       <input
         type="text"
         value={settingsStore.settings.unverified_keyserver_url}
         onchange={(e) => settingsStore.save({ unverified_keyserver_url: e.currentTarget.value })}
-        class="w-56 px-2 py-1 text-sm rounded border border-[var(--color-border)] bg-[var(--color-bg)]
-               focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]"
+        class="w-56 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1 text-sm
+               focus:ring-2 focus:ring-[var(--color-primary)] focus:outline-none"
       />
     </label>
 
@@ -532,7 +562,11 @@
               class:border-[var(--color-border)]={settingsStore.settings.proxy_preset !== preset}
               onclick={() => selectProxyPreset(preset)}
             >
-              {preset === "tor" ? "Tor" : preset === "lokinet" ? "Lokinet" : m.settings_proxy_custom()}
+              {preset === "tor"
+                ? "Tor"
+                : preset === "lokinet"
+                  ? "Lokinet"
+                  : m.settings_proxy_custom()}
             </button>
           {/each}
         </div>
@@ -563,8 +597,11 @@
             {proxyTesting ? m.settings_proxy_testing() : m.settings_proxy_test()}
           </button>
           {#if proxyTestResult}
-            <p class="text-xs" class:text-green-600={proxyTestSuccess}
-               class:text-red-600={!proxyTestSuccess}>
+            <p
+              class="text-xs"
+              class:text-green-600={proxyTestSuccess}
+              class:text-red-600={!proxyTestSuccess}
+            >
               {proxyTestResult}
             </p>
           {/if}

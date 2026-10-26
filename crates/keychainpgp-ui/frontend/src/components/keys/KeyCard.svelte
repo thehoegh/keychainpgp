@@ -13,13 +13,16 @@
   import { appStore } from "$lib/stores/app.svelte";
   import TrustBadge from "../shared/TrustBadge.svelte";
   import FingerprintDisplay from "../shared/FingerprintDisplay.svelte";
-  import { formatDate } from "$lib/utils";
+  import { formatDate, keyCertificateName, keyLabel } from "$lib/utils";
   import * as m from "$lib/paraglide/messages.js";
 
   interface Props {
     key: KeyInfo;
   }
   let { key: keyInfo }: Props = $props();
+
+  const label = $derived(keyLabel(keyInfo));
+  const certificateName = $derived(keyCertificateName(keyInfo));
 
   async function handleExport() {
     try {
@@ -76,7 +79,7 @@
     appStore.openModal("confirm", {
       title: m.key_delete_title(),
       message: m.key_delete_message({
-        name: keyInfo.name ?? keyInfo.email ?? keyInfo.fingerprint.slice(-8),
+        name: label,
       }),
       onConfirm: async () => {
         try {
@@ -106,7 +109,7 @@
     <div class="min-w-0 flex-1">
       <div class="mb-1 flex items-center gap-2">
         <span class="truncate font-medium">
-          {keyInfo.name ?? m.unnamed()}
+          {label}
         </span>
         {#if keyInfo.is_revoked}
           <span
@@ -118,8 +121,11 @@
           <TrustBadge level={keyInfo.trust_level} />
         {/if}
       </div>
-      {#if keyInfo.email}
-        <p class="truncate text-sm text-[var(--color-text-secondary)]">{keyInfo.email}</p>
+      {#if certificateName || keyInfo.email}
+        <p class="truncate text-sm text-[var(--color-text-secondary)]">
+          {certificateName ?? ""}{certificateName && keyInfo.email ? " · " : ""}{keyInfo.email ??
+            ""}
+        </p>
       {/if}
       <div class="mt-2 flex items-center gap-3 text-xs text-[var(--color-text-secondary)]">
         <FingerprintDisplay fingerprint={keyInfo.fingerprint} short />
