@@ -87,7 +87,7 @@ impl Keyring {
         self.storage.list_all()
     }
 
-    /// Search keys by name, email, or fingerprint fragment.
+    /// Search keys by alias, name, email, or fingerprint fragment.
     pub fn search_keys(&self, query: &str) -> Result<Vec<KeyRecord>> {
         self.storage.search(query)
     }
@@ -113,6 +113,11 @@ impl Keyring {
     /// Update the trust level for a key.
     pub fn set_trust(&self, fingerprint: &str, trust: TrustLevel) -> Result<bool> {
         self.storage.set_trust(fingerprint, trust)
+    }
+
+    /// Set or clear the local alias. Blank input clears it. Returns false if the key is missing.
+    pub fn set_alias(&self, fingerprint: &str, alias: Option<&str>) -> Result<bool> {
+        self.storage.set_alias(fingerprint, alias)
     }
 
     /// Mark a key as revoked in the database.

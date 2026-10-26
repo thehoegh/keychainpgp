@@ -36,6 +36,7 @@ fn generate_and_store(
         trust_level: 2,
         is_own_key: true,
         is_revoked: info.is_revoked,
+        alias: None,
         pgp_data: key_pair.public_key.clone(),
     };
 
@@ -220,6 +221,7 @@ fn test_import_public_key() {
         trust_level: 1,
         is_own_key: false,
         is_revoked: info.is_revoked,
+        alias: None,
         pgp_data: key_pair.public_key.clone(),
     };
 
@@ -351,4 +353,10 @@ fn test_full_pipeline_generate_store_encrypt_sign_verify_decrypt() {
         .decrypt(&ciphertext, bob_sk.expose_secret(), None)
         .unwrap();
     assert_eq!(decrypted, message);
+}
+
+#[test]
+fn test_set_alias_missing_key_returns_false() {
+    let (_engine, keyring, _tmp) = setup();
+    assert!(!keyring.set_alias("missing", Some("Bob")).unwrap());
 }

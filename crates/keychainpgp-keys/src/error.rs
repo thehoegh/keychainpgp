@@ -21,6 +21,10 @@ pub enum Error {
     #[error("invalid key data: {reason}")]
     InvalidKey { reason: String },
 
+    /// Local alias exceeds the maximum length.
+    #[error("alias must be at most 256 characters")]
+    AliasTooLong,
+
     /// I/O error.
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),

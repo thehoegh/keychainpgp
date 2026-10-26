@@ -473,6 +473,7 @@ mod tests {
             trust_level: 2,
             is_own_key: true,
             is_revoked: info.is_revoked,
+            alias: None,
             pgp_data: key_pair.public_key.clone(),
         };
 
