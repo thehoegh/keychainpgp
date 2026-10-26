@@ -80,6 +80,7 @@ pub struct KeyInfo {
     pub trust_level: i32,
     pub is_own_key: bool,
     pub is_revoked: bool,
+    pub alias: Option<String>,
 }
 
 /// Key discovery result with source information.
@@ -94,6 +95,7 @@ pub struct DiscoveryResult {
     pub trust_level: i32,
     pub is_own_key: bool,
     pub is_revoked: bool,
+    pub alias: Option<String>,
     pub source: String,
 }
 
@@ -109,6 +111,7 @@ impl From<KeyRecord> for KeyInfo {
             trust_level: r.trust_level,
             is_own_key: r.is_own_key,
             is_revoked: r.is_revoked,
+            alias: r.alias,
         }
     }
 }
@@ -339,6 +342,26 @@ pub fn set_key_trust(
         .map_err(|e| format!("Failed to set trust: {e}"))
 }
 
+/// Set or clear the local alias for a key. Empty input clears it.
+#[tauri::command]
+pub fn set_key_alias(
+    state: State<'_, AppState>,
+    fingerprint: String,
+    alias: Option<String>,
+) -> Result<(), String> {
+    let keyring = state
+        .keyring
+        .lock()
+        .map_err(|e| format!("Internal error: {e}"))?;
+    let updated = keyring
+        .set_alias(&fingerprint, alias.as_deref())
+        .map_err(|e| format!("Failed to set alias: {e}"))?;
+    if !updated {
+        return Err(format!("Key not found: {fingerprint}"));
+    }
+    Ok(())
+}
+
 /// Inspect a key and return detailed metadata.
 #[tauri::command]
 pub fn inspect_key(state: State<'_, AppState>, fingerprint: String) -> Result<KeyInfo, String> {
@@ -383,6 +406,7 @@ pub struct KeyDetailedInfo {
     pub expires_at: Option<String>,
     pub trust_level: i32,
     pub is_own_key: bool,
+    pub alias: Option<String>,
     pub user_ids: Vec<UserIdDto>,
     pub subkeys: Vec<SubkeyInfoDto>,
 }
@@ -438,6 +462,7 @@ pub fn inspect_key_detailed(
         expires_at: record.expires_at,
         trust_level: record.trust_level,
         is_own_key: record.is_own_key,
+        alias: record.alias,
         user_ids,
         subkeys,
     })
@@ -511,6 +536,7 @@ pub async fn wkd_lookup(
         trust_level: 0,
         is_own_key: false,
         is_revoked: cert_info.is_revoked,
+        alias: None,
     }))
 }
 
@@ -712,6 +738,7 @@ pub async fn keyserver_search(
                 trust_level: 0,
                 is_own_key: false,
                 is_revoked: false,
+                alias: None,
                 source,
             }
         })

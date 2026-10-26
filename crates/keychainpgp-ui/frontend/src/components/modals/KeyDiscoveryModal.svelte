@@ -11,6 +11,7 @@
     type KeyInfo,
     type DiscoveryResult,
   } from "$lib/tauri";
+  import { keyLabel } from "$lib/utils";
   import * as m from "$lib/paraglide/messages.js";
 
   interface SearchResult {
@@ -94,7 +95,7 @@
       importedFps.add(result.key.fingerprint);
       appStore.setStatus(
         m.import_success_key({
-          name: (importedKey.name ?? importedKey.email ?? importedKey.fingerprint) || "",
+          name: keyLabel(importedKey),
         }),
       );
       appStore.closeModal();

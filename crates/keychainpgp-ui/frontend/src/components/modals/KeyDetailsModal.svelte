@@ -4,8 +4,17 @@
   import TrustBadge from "../shared/TrustBadge.svelte";
   import { appStore } from "$lib/stores/app.svelte";
   import { keyStore } from "$lib/stores/keys.svelte";
-  import { setKeyTrust, inspectKeyDetailed, type KeyDetailedInfo } from "$lib/tauri";
-  import { Globe, User, Shield, Key as KeyIcon, Mail, Calendar, Hash, MoreHorizontal } from "lucide-svelte";
+  import { setKeyTrust, setKeyAlias, inspectKeyDetailed, type KeyDetailedInfo } from "$lib/tauri";
+  import {
+    Globe,
+    User,
+    Shield,
+    Key as KeyIcon,
+    Mail,
+    Calendar,
+    Hash,
+    MoreHorizontal,
+  } from "lucide-svelte";
   import { formatDate } from "$lib/utils";
   import * as m from "$lib/paraglide/messages.js";
 
@@ -15,6 +24,32 @@
   let detailed: KeyDetailedInfo | null = $state(null);
   let updating = $state(false);
   let showSubkeys = $state(false);
+  let aliasDraft = $state("");
+  let savingAlias = $state(false);
+
+  $effect(() => {
+    aliasDraft = keyInfo?.alias ?? "";
+  });
+
+  async function commitAlias() {
+    if (!keyInfo || savingAlias) return;
+    const next = aliasDraft.trim();
+    const current = (keyInfo.alias ?? "").trim();
+    if (next === current) {
+      aliasDraft = current;
+      return;
+    }
+    savingAlias = true;
+    try {
+      await setKeyAlias(keyInfo.fingerprint, next.length === 0 ? null : next);
+      await keyStore.refresh();
+    } catch (e) {
+      aliasDraft = keyInfo.alias ?? "";
+      appStore.setStatus(m.key_alias_update_failed({ error: String(e) }));
+    } finally {
+      savingAlias = false;
+    }
+  }
 
   // Load detailed info on mount
   $effect(() => {
@@ -46,6 +81,25 @@
   {#if keyInfo}
     <div class="space-y-4">
       <div class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <label class="self-center text-[var(--color-text-secondary)]" for="key-alias"
+          >{m.key_details_alias()}</label
+        >
+        <input
+          id="key-alias"
+          type="text"
+          maxlength="256"
+          placeholder={m.key_details_alias_placeholder()}
+          bind:value={aliasDraft}
+          onblur={commitAlias}
+          onkeydown={(e) => {
+            if (e.key === "Enter") e.currentTarget.blur();
+          }}
+          disabled={savingAlias}
+          class="w-full rounded-lg border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1
+                 text-sm focus:ring-2 focus:ring-[var(--color-primary)] focus:outline-none
+                 disabled:opacity-60"
+        />
+
         <span class="text-[var(--color-text-secondary)]">{m.key_details_name()}</span>
         <span class="font-medium">{keyInfo.name ?? m.unnamed()}</span>
 
@@ -160,8 +214,9 @@
           </button>
           {#if keyInfo.is_own_key}
             <button
-              class="px-3 py-1.5 text-sm rounded-lg border border-[var(--color-border)] hover:bg-[var(--color-bg-secondary)] transition-colors flex items-center gap-1.5"
-              onclick={() => appStore.openModal("publish-prompt", { fingerprint: keyInfo.fingerprint })}
+              class="flex items-center gap-1.5 rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-sm transition-colors hover:bg-[var(--color-bg-secondary)]"
+              onclick={() =>
+                appStore.openModal("publish-prompt", { fingerprint: keyInfo.fingerprint })}
             >
               <Globe size={14} />
               {m.publish_prompt_title()}

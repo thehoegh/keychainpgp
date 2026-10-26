@@ -23,6 +23,39 @@ export function formatDate(iso: string | null | undefined): string {
   });
 }
 
+type LabeledKey = {
+  alias?: string | null;
+  name?: string | null;
+  email?: string | null;
+};
+
+/** Local alias, then the certificate name, then the unnamed fallback. */
+export function keyLabel(key: LabeledKey): string {
+  const alias = key.alias?.trim();
+  if (alias) return alias;
+  const name = key.name?.trim();
+  if (name) return name;
+  return m.unnamed();
+}
+
+/** Certificate name to show when a different alias is the title. */
+export function keyCertificateName(key: LabeledKey): string | null {
+  const alias = key.alias?.trim();
+  const name = key.name?.trim();
+  if (alias && name && alias !== name) return name;
+  return null;
+}
+
+/** Secondary line: certificate name ahead of the email when an alias is set. */
+export function keySecondary(key: LabeledKey, fallback: string): string {
+  const certificateName = keyCertificateName(key);
+  const email = key.email?.trim();
+  if (certificateName && email) return `${certificateName} · ${email}`;
+  if (certificateName) return certificateName;
+  if (email) return email;
+  return fallback;
+}
+
 /** Truncate text to maxLen, appending "..." if truncated. */
 export function truncate(text: string, maxLen: number): string {
   if (text.length <= maxLen) return text;

@@ -15,6 +15,7 @@ export interface KeyInfo {
   trust_level: number;
   is_own_key: boolean;
   is_revoked: boolean;
+  alias: string | null;
 }
 
 export interface DiscoveryResult extends KeyInfo {
@@ -70,6 +71,7 @@ export interface KeyDetailedInfo {
   trust_level: number;
   is_own_key: boolean;
   is_revoked: boolean;
+  alias: string | null;
   user_ids: UserIdDto[];
   subkeys: SubkeyInfoDto[];
 }
@@ -183,6 +185,10 @@ export async function inspectKey(fingerprint: string): Promise<KeyInfo> {
 
 export async function setKeyTrust(fingerprint: string, trustLevel: number): Promise<boolean> {
   return invoke("set_key_trust", { fingerprint, trustLevel });
+}
+
+export async function setKeyAlias(fingerprint: string, alias: string | null): Promise<void> {
+  return invoke("set_key_alias", { fingerprint, alias });
 }
 
 export async function inspectKeyDetailed(fingerprint: string): Promise<KeyDetailedInfo> {
