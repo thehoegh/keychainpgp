@@ -10,11 +10,11 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/keychainpgp/keychainpgp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/keychainpgp/keychainpgp/ci.yml?branch=master&style=flat-square&logo=github&label=CI" alt="CI"></a>
-  <a href="https://github.com/keychainpgp/keychainpgp/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/keychainpgp/keychainpgp/release.yml?style=flat-square&logo=github&label=Release" alt="Release"></a>
-  <a href="https://github.com/keychainpgp/keychainpgp/releases/latest"><img src="https://img.shields.io/github/v/release/keychainpgp/keychainpgp?style=flat-square&color=blue" alt="Latest Release"></a>
-  <a href="https://github.com/keychainpgp/keychainpgp/releases"><img src="https://img.shields.io/github/downloads/keychainpgp/keychainpgp/total?style=flat-square&color=green" alt="Downloads"></a>
-  <a href="https://github.com/keychainpgp/keychainpgp/blob/master/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue?style=flat-square" alt="License"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/thehoegh/keychainpgp/ci.yml?branch=main&style=flat-square&logo=github&label=CI" alt="CI"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/actions/workflows/release.yml"><img src="https://img.shields.io/github/actions/workflow/status/thehoegh/keychainpgp/release.yml?style=flat-square&logo=github&label=Release" alt="Release"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/releases/latest"><img src="https://img.shields.io/github/v/release/thehoegh/keychainpgp?style=flat-square&color=blue" alt="Latest Release"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/releases"><img src="https://img.shields.io/github/downloads/thehoegh/keychainpgp/total?style=flat-square&color=green" alt="Downloads"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/blob/main/LICENSE-MIT"><img src="https://img.shields.io/badge/license-MIT%2FApache--2.0-blue?style=flat-square" alt="License"></a>
 </p>
 
 <p align="center">
@@ -58,11 +58,11 @@ KeychainPGP brings the simplicity of [OpenKeychain](https://www.openkeychain.org
 ## Download
 
 <p align="center">
-  <a href="https://github.com/keychainpgp/keychainpgp/releases/latest"><img src="https://img.shields.io/badge/Download-GitHub_Releases-blue?style=for-the-badge&logo=github" alt="GitHub Releases" height="45"></a>
+  <a href="https://github.com/thehoegh/keychainpgp/releases/latest"><img src="https://img.shields.io/badge/Download-GitHub_Releases-blue?style=for-the-badge&logo=github" alt="GitHub Releases" height="45"></a>
   &nbsp;
-  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.keychainpgp.app%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fkeychainpgp%2Fkeychainpgp%22%2C%22author%22%3A%22keychainpgp%22%2C%22name%22%3A%22KeychainPGP%22%7D"><img src="https://img.shields.io/badge/Android-Obtainium-teal?style=for-the-badge&logo=android&logoColor=white" alt="Get it on Obtainium" height="45"></a>
+  <a href="https://apps.obtainium.imranr.dev/redirect?r=obtainium://app/%7B%22id%22%3A%22com.keychainpgp.app%22%2C%22url%22%3A%22https%3A%2F%2Fgithub.com%2Fthehoegh%2Fkeychainpgp%22%2C%22author%22%3A%22thehoegh%22%2C%22name%22%3A%22KeychainPGP%22%7D"><img src="https://img.shields.io/badge/Android-Obtainium-teal?style=for-the-badge&logo=android&logoColor=white" alt="Get it on Obtainium" height="45"></a>
   &nbsp;
-  <a href="https://keychainpgp.github.io"><img src="https://img.shields.io/badge/Web_App-Try_Online-orange?style=for-the-badge&logo=webassembly&logoColor=white" alt="Web App" height="45"></a>
+  <a href="https://thehoegh.github.io/keychainpgp"><img src="https://img.shields.io/badge/Web_App-Try_Online-orange?style=for-the-badge&logo=webassembly&logoColor=white" alt="Web App" height="45"></a>
 </p>
 
 | Platform | Formats | Portable | Requirements |
@@ -137,7 +137,7 @@ keychainpgp/
 
 ```bash
 # Clone the repository
-git clone https://github.com/keychainpgp/keychainpgp.git
+git clone https://github.com/thehoegh/keychainpgp.git
 cd keychainpgp
 
 # Install frontend dependencies and build the UI
@@ -204,15 +204,9 @@ This project follows the [Contributor Covenant v2.1](CODE_OF_CONDUCT.md).
 
 ## Security
 
-If you discover a security vulnerability, **do NOT open a public issue**. Please email **keychainpgp@protonmail.com** instead.
+If you discover a security vulnerability, **do NOT open a public issue**. Report it privately through [GitHub Security Advisories](https://github.com/thehoegh/keychainpgp/security/advisories/new).
 
 See [SECURITY.md](SECURITY.md) for full details.
-
-## Donate
-
-If you find KeychainPGP useful, consider supporting its development:
-
-<a href="https://keychainpgp.org/#donate"><img src="https://img.shields.io/badge/Donate-KeychainPGP-orange?style=for-the-badge&logo=heart&logoColor=white" alt="Donate" height="35"></a>
 
 ## License
 

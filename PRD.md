@@ -953,16 +953,16 @@ No feature is degraded or unavailable when offline.
 
 ### Phase 7: Website & Web App (Weeks 53+)
 
-**Goal:** Two separate web presences — a marketing website on `keychainpgp.org` that presents the project and drives adoption, and the existing WASM web app on `keychainpgp.github.io` polished to production quality.
+**Goal:** Two separate web presences — a marketing website that presents the project and drives adoption, and the WASM web app on `thehoegh.github.io/keychainpgp` polished to production quality.
 
-#### 7a. Marketing website (`keychainpgp.org`)
+#### 7a. Marketing website
 
 A lightweight static site (Astro, Hugo, or plain HTML) in a separate repo, deployed to GitHub Pages with a custom domain.
 
 - [ ] Hero section: tagline, one-line value proposition, animated product screenshot/mockup, and prominent download buttons (Windows / macOS / Linux / Android).
 - [ ] Features section: 3-4 key selling points with icons (clipboard-first, zero-config, cross-platform, open source).
 - [ ] "How it works" section: 3-step visual walkthrough (Copy → Encrypt → Paste).
-- [ ] "Try in browser" CTA linking to the web app at `keychainpgp.github.io`.
+- [ ] "Try in browser" CTA linking to the web app at `thehoegh.github.io/keychainpgp`.
 - [ ] Download section: platform-detected auto-suggestion ("It looks like you're on Windows — [Download for Windows]") with manual override for all platforms.
 - [ ] Verification section: GPG signatures and SHA-256 checksums for every release binary.
 - [ ] Documentation hub: links to user guide, FAQ, security model, and contribution guide.
@@ -971,9 +971,9 @@ A lightweight static site (Astro, Hugo, or plain HTML) in a separate repo, deplo
 - [ ] SEO: Open Graph tags, structured data (JSON-LD SoftwareApplication), sitemap, meta descriptions.
 - [ ] i18n: site available in all Phase 3 languages (at minimum EN, FR, DE, ES, RU, ZH-CN, JA, AR).
 - [ ] Privacy-respecting analytics (Plausible, Umami, or self-hosted — no Google Analytics).
-- [ ] Deployment: separate repo with CI/CD, custom domain `keychainpgp.org` via GitHub Pages CNAME.
+- [ ] Deployment: GitHub Pages from this repository.
 
-#### 7b. Web app polish (`keychainpgp.github.io`)
+#### 7b. Web app polish (`thehoegh.github.io/keychainpgp`)
 
 The WASM-based web app is already deployed from `web/` via `deploy-web.yml`. This sub-phase brings it to production quality.
 
@@ -983,7 +983,7 @@ The WASM-based web app is already deployed from `web/` via `deploy-web.yml`. Thi
 - [ ] Improved onboarding: first-visit guidance or help tooltips for new users.
 - [ ] Open Graph tags and favicon set for shared links.
 
-**Exit criteria:** Visiting `keychainpgp.org` presents a professional, multilingual landing page where any user can understand the product, download the correct installer, verify its authenticity, or try the app in their browser via `keychainpgp.github.io`. The web app supports multiple languages and both light/dark themes.
+**Exit criteria:** The project site presents a professional, multilingual landing page where any user can understand the product, download the correct installer, verify its authenticity, or try the app in their browser via `thehoegh.github.io/keychainpgp`. The web app supports multiple languages and both light/dark themes.
 
 ### Phase 8: iOS App (Weeks 55+)
 
@@ -1063,7 +1063,7 @@ All dependencies must be compatible with MIT/Apache-2.0 dual licensing. Dependen
 
 ### 12.2 Repository Structure
 
-- Single monorepo on GitHub: `github.com/keychainpgp/keychainpgp`
+- Single monorepo on GitHub: `github.com/thehoegh/keychainpgp`
 - Rust workspace at the repository root.
 - Frontend code co-located in `crates/keychainpgp-ui/frontend/`.
 - Documentation in `docs/`.
@@ -1090,7 +1090,7 @@ All dependencies must be compatible with MIT/Apache-2.0 dual licensing. Dependen
 ### 12.5 Security Process
 
 - `SECURITY.md` with disclosure instructions.
-- Dedicated security email: `security@keychainpgp.org` (or equivalent).
+- Private vulnerability reports via GitHub Security Advisories on this repository.
 - 90-day disclosure policy: reported vulnerabilities are fixed and disclosed within 90 days.
 - Security advisories published via GitHub Security Advisories.
 - Bug bounty: initially informal (acknowledgment + credit); formal program when funding allows.
