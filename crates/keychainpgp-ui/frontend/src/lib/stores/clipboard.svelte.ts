@@ -5,6 +5,10 @@ import { settingsStore } from "./settings.svelte";
 let content: string | null = $state(null);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let autoClearTimer: ReturnType<typeof setTimeout> | null = null;
+/** While true, polls keep running but must not replace `content`. */
+let held = false;
+let polling = false;
+let refreshSeq = 0;
 
 export const clipboardStore = {
   get content() {
@@ -20,20 +24,46 @@ export const clipboardStore = {
   },
 
   async refresh() {
+    if (held) return;
+    const seq = ++refreshSeq;
     try {
-      content = await readClipboard();
+      const next = await readClipboard();
+      // A passphrase copy can land while this read is in flight. Drop it
+      // so it cannot replace the message captured for encrypt/decrypt/sign.
+      if (seq !== refreshSeq || held) return;
+      content = next;
     } catch {
+      if (seq !== refreshSeq || held) return;
       content = null;
     }
   },
 
+  /**
+   * Keep the current clipboard snapshot. Idempotent. Pair with `release()`.
+   * Used while a passphrase or recipient dialog is open, so copying a
+   * passphrase does not replace the message.
+   */
+  hold() {
+    held = true;
+  },
+
+  release() {
+    if (!held) return;
+    held = false;
+    if (polling) void this.refresh();
+  },
+
   startPolling(intervalMs = 2000) {
     this.stopPolling();
-    this.refresh();
-    pollInterval = setInterval(() => this.refresh(), intervalMs);
+    polling = true;
+    void this.refresh();
+    pollInterval = setInterval(() => {
+      void this.refresh();
+    }, intervalMs);
   },
 
   stopPolling() {
+    polling = false;
     if (pollInterval) {
       clearInterval(pollInterval);
       pollInterval = null;
