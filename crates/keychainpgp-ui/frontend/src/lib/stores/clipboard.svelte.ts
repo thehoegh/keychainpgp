@@ -1,14 +1,20 @@
 import { readClipboard, clearClipboard } from "$lib/tauri";
 import { isPgpMessage, isPgpSignedMessage } from "$lib/utils";
+import {
+  beginClipboardRead,
+  createClipboardReads,
+  finishClipboardRead,
+  holdClipboardRead,
+  releaseClipboardRead,
+} from "./clipboard-generation";
 import { settingsStore } from "./settings.svelte";
 
 let content: string | null = $state(null);
 let pollInterval: ReturnType<typeof setInterval> | null = null;
 let autoClearTimer: ReturnType<typeof setTimeout> | null = null;
-/** While true, polls keep running but must not replace `content`. */
-let held = false;
 let polling = false;
-let refreshSeq = 0;
+/** See `clipboard-generation.ts` for why a stale read may still publish. */
+const reads = createClipboardReads();
 
 export const clipboardStore = {
   get content() {
@@ -23,33 +29,37 @@ export const clipboardStore = {
     return content ? isPgpSignedMessage(content) : false;
   },
 
-  async refresh() {
-    if (held) return;
-    const seq = ++refreshSeq;
+  /**
+   * Read the clipboard. Returns the text this call observed.
+   * Publishes it only when no newer read has published and the snapshot
+   * is not held. Callers that are about to `hold()` must use the return
+   * value: a poll can both supersede this read and then be dropped.
+   */
+  async refresh(): Promise<string | null> {
+    const seq = beginClipboardRead(reads);
+    if (seq === null) return content;
+    let next: string | null;
     try {
-      const next = await readClipboard();
-      // A passphrase copy can land while this read is in flight. Drop it
-      // so it cannot replace the message captured for encrypt/decrypt/sign.
-      if (seq !== refreshSeq || held) return;
-      content = next;
+      next = await readClipboard();
     } catch {
-      if (seq !== refreshSeq || held) return;
-      content = null;
+      next = null;
     }
+    if (finishClipboardRead(reads, seq)) content = next;
+    return next;
   },
 
   /**
-   * Keep the current clipboard snapshot. Idempotent. Pair with `release()`.
-   * Used while a passphrase or recipient dialog is open, so copying a
-   * passphrase does not replace the message.
+   * Pin `snapshot` until `release()`. Omit `snapshot` to freeze `content`
+   * as it already is. In-flight polls cannot replace the pin, so copying a
+   * passphrase does not replace the message being encrypted, decrypted, or signed.
    */
-  hold() {
-    held = true;
+  hold(snapshot?: string | null) {
+    holdClipboardRead(reads);
+    if (snapshot !== undefined) content = snapshot;
   },
 
   release() {
-    if (!held) return;
-    held = false;
+    if (!releaseClipboardRead(reads)) return;
     if (polling) void this.refresh();
   },
 

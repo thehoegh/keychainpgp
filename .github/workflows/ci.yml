@@ -134,6 +134,8 @@ jobs:
       - name: Generate paraglide i18n
         run: npx paraglide-js compile --project ./project.inlang --outdir ./src/lib/paraglide
         working-directory: crates/keychainpgp-ui/frontend
+      - run: npm run test:unit
+        working-directory: crates/keychainpgp-ui/frontend
       - run: npm run check
         working-directory: crates/keychainpgp-ui/frontend
       - run: npm run build
