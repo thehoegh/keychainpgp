@@ -2,7 +2,7 @@ name: Deploy Web App
 
 on:
   push:
-    branches: [master]
+    branches: [main]
     paths:
       - "web/**"
       - "crates/keychainpgp-wasm/**"
@@ -10,7 +10,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: deploy-web
@@ -55,11 +55,9 @@ jobs:
       - run: npm run build
         working-directory: web
 
-      - name: Deploy to keychainpgp.github.io
+      - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
         with:
-          personal_token: ${{ secrets.DEPLOY_TOKEN }}
-          external_repository: KeychainPGP/keychainpgp.github.io
-          publish_branch: main
+          github_token: ${{ secrets.GITHUB_TOKEN }}
           publish_dir: web/dist
-          commit_message: "deploy: update from keychainpgp@${{ github.sha }}"
+          commit_message: "deploy: update from ${{ github.sha }}"
