@@ -156,6 +156,7 @@ pub fn generate_key_pair(
         trust_level: 2, // Own key = verified
         is_own_key: true,
         is_revoked: info.is_revoked,
+        alias: None,
         pgp_data: key_pair.public_key.clone(),
     };
 
@@ -229,6 +230,7 @@ pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInf
         trust_level: if cert_info.has_secret_key { 2 } else { 1 },
         is_own_key: cert_info.has_secret_key,
         is_revoked: cert_info.is_revoked,
+        alias: None,
         pgp_data: key_data.as_bytes().to_vec(),
     };
 
@@ -542,6 +544,7 @@ pub async fn wkd_fetch_and_import(
         trust_level: 1,
         is_own_key: false,
         is_revoked: cert_info.is_revoked,
+        alias: None,
         pgp_data: key_bytes,
     };
 
@@ -887,6 +890,7 @@ pub fn import_backup(
                     trust_level: 2,
                     is_own_key: true,
                     is_revoked: cert_info.is_revoked,
+                    alias: existing.alias.clone(),
                     pgp_data: public_bytes,
                 };
                 // Delete the public-only record and re-store with secret material
@@ -917,6 +921,7 @@ pub fn import_backup(
             trust_level: if is_own { 2 } else { 1 },
             is_own_key: is_own,
             is_revoked: cert_info.is_revoked,
+            alias: None,
             pgp_data: public_bytes,
         };
 

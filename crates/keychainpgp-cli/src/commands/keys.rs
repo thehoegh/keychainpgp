@@ -52,6 +52,7 @@ pub fn import(file: &Path) -> Result<()> {
             trust_level: 2, // own key = verified
             is_own_key: true,
             is_revoked: info.is_revoked,
+            alias: None,
             pgp_data: data.clone(),
         };
         keyring.store_generated_key(record, &data)?;
@@ -68,6 +69,7 @@ pub fn import(file: &Path) -> Result<()> {
             trust_level: 1, // imported = unverified
             is_own_key: false,
             is_revoked: info.is_revoked,
+            alias: None,
             pgp_data: data,
         };
         keyring.import_public_key(record)?;
