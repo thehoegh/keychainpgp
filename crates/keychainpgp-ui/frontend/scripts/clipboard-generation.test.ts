@@ -30,9 +30,9 @@ function createHarness(initial: string | null) {
       if (finishClipboardRead(reads, seq)) content = next;
       return next;
     },
-    hold(snapshot?: string | null) {
+    hold(snapshot: string | null) {
       holdClipboardRead(reads);
-      if (snapshot !== undefined) content = snapshot;
+      content = snapshot;
     },
     release(): boolean {
       return releaseClipboardRead(reads);

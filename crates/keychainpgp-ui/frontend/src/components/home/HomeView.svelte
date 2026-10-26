@@ -16,9 +16,11 @@
 
   /**
    * Snapshot the compose field or clipboard, then freeze clipboard polling.
-   * `release()` (or a dialog's `onDismiss`) resumes polling. Without the
-   * freeze, copying a passphrase replaces the message being encrypted,
-   * decrypted, or signed.
+   * `release()` (or a dialog's `onDismiss`) resumes polling. The snapshot is
+   * the text this action read, not `clipboardStore.content`: a poll can
+   * supersede that read and then be dropped by the hold, or publish a later
+   * clipboard value first. Without the freeze, copying a passphrase replaces
+   * the message being encrypted, decrypted, or signed.
    */
   async function takeInput(): Promise<{
     text: string | null;
@@ -26,16 +28,21 @@
     release: () => void;
   }> {
     const compose = isCompose;
-    if (!compose) {
-      await clipboardStore.refresh();
-      clipboardStore.hold();
+    if (compose) {
+      return {
+        compose,
+        text: appStore.composeText || null,
+        release() {},
+      };
     }
+    const text = await clipboardStore.refresh();
+    clipboardStore.hold(text);
     let released = false;
     return {
       compose,
-      text: compose ? appStore.composeText || null : clipboardStore.content,
+      text,
       release() {
-        if (compose || released) return;
+        if (released) return;
         released = true;
         clipboardStore.release();
       },
