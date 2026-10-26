@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import { Eye, EyeOff } from "lucide-svelte";
   import ModalContainer from "./ModalContainer.svelte";
   import { appStore } from "$lib/stores/app.svelte";
@@ -6,6 +7,10 @@
 
   let passphrase = $state("");
   let showPassword = $state(false);
+
+  // Captured up front: closeModal() clears modalProps before this unmounts.
+  const onDismiss = appStore.modalProps.onDismiss;
+  onDestroy(() => onDismiss?.());
 
   function handleSubmit() {
     if (appStore.modalProps.onSubmit) {

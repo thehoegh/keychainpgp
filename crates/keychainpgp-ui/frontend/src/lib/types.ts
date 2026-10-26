@@ -37,9 +37,11 @@ export interface ModalProps {
   suggestion?: string;
   /** For passphrase dialog */
   onSubmit?: (passphrase: string) => void;
+  /** Fired when a passphrase or recipient dialog closes, including cancel. */
+  onDismiss?: () => void;
   /** For verify-result modal */
   verifyResult?: import("$lib/tauri").VerifyResultInfo;
-  /** For recipient-selector: text to encrypt (compose mode) */
+  /** For recipient-selector: plaintext captured when encrypt started */
   text?: string;
 }
 

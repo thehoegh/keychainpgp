@@ -8,26 +8,38 @@
   import { keyStore } from "$lib/stores/keys.svelte";
   import { isPgpMessage } from "$lib/utils";
   import { isDesktop } from "$lib/platform";
-  import {
-    decryptClipboard,
-    signClipboard,
-    verifyClipboard,
-    decryptText,
-    signText,
-    verifyText,
-    writeClipboard,
-  } from "$lib/tauri";
+  import { decryptText, signText, verifyText, writeClipboard } from "$lib/tauri";
   import * as m from "$lib/paraglide/messages.js";
 
   let isCompose = $derived(appStore.inputMode === "compose");
   const desktop = isDesktop();
 
-  /** Get the active text content depending on input mode. */
-  function getContent(): string | null {
-    if (isCompose) {
-      return appStore.composeText || null;
+  /**
+   * Snapshot the compose field or clipboard, then freeze clipboard polling.
+   * `release()` (or a dialog's `onDismiss`) resumes polling. Without the
+   * freeze, copying a passphrase replaces the message being encrypted,
+   * decrypted, or signed.
+   */
+  async function takeInput(): Promise<{
+    text: string | null;
+    compose: boolean;
+    release: () => void;
+  }> {
+    const compose = isCompose;
+    if (!compose) {
+      await clipboardStore.refresh();
+      clipboardStore.hold();
     }
-    return clipboardStore.content;
+    let released = false;
+    return {
+      compose,
+      text: compose ? appStore.composeText || null : clipboardStore.content,
+      release() {
+        if (compose || released) return;
+        released = true;
+        clipboardStore.release();
+      },
+    };
   }
 
   // React to external actions (hotkeys, tray)
@@ -51,137 +63,145 @@
     }
   });
 
-  function handleEncrypt() {
-    const content = getContent();
-    if (!content) {
-      appStore.setStatus(isCompose ? m.encrypt_empty_compose() : m.encrypt_empty_clipboard());
+  async function handleEncrypt() {
+    const { text, compose, release } = await takeInput();
+    if (!text) {
+      release();
+      appStore.setStatus(compose ? m.encrypt_empty_compose() : m.encrypt_empty_clipboard());
       return;
     }
     if (keyStore.keys.length === 0) {
+      release();
       appStore.setStatus(m.encrypt_no_keys());
       return;
     }
-    if (isCompose) {
-      appStore.openModal("recipient-selector", { text: content });
-    } else {
-      appStore.openModal("recipient-selector");
-    }
+    appStore.openModal("recipient-selector", { text, onDismiss: release });
   }
 
   async function handleDecrypt() {
-    const content = getContent();
-    if (!content) {
-      appStore.setStatus(isCompose ? m.decrypt_empty_compose() : m.decrypt_empty_clipboard());
-      return;
-    }
-    if (!isPgpMessage(content)) {
-      appStore.setStatus(m.decrypt_no_pgp());
-      return;
-    }
-    appStore.setStatus(m.decrypt_in_progress(), 0);
+    const { text, compose, release } = await takeInput();
+    let handoff = false;
     try {
-      const result = isCompose ? await decryptText(content) : await decryptClipboard();
-      if (result.success) {
-        appStore.openModal("decrypted-viewer", { plaintext: result.plaintext });
-        appStore.setStatus(m.decrypt_success());
-        clipboardStore.scheduleAutoClear();
-      } else {
-        appStore.setStatus(result.message);
+      if (!text) {
+        appStore.setStatus(compose ? m.decrypt_empty_compose() : m.decrypt_empty_clipboard());
+        return;
       }
-    } catch (e) {
-      const msg = String(e);
-      if (msg.includes("passphrase") || msg.includes("private key")) {
-        appStore.openModal("passphrase", {
-          onSubmit: async (passphrase: string) => {
-            try {
-              const result = isCompose
-                ? await decryptText(content, passphrase)
-                : await decryptClipboard(passphrase);
-              if (result.success) {
-                appStore.openModal("decrypted-viewer", { plaintext: result.plaintext });
-                appStore.setStatus(m.decrypt_success());
-                clipboardStore.scheduleAutoClear();
-              } else {
-                appStore.openModal("error", { error: result.message });
+      if (!isPgpMessage(text)) {
+        appStore.setStatus(m.decrypt_no_pgp());
+        return;
+      }
+      appStore.setStatus(m.decrypt_in_progress(), 0);
+      try {
+        const result = await decryptText(text);
+        if (result.success) {
+          appStore.openModal("decrypted-viewer", { plaintext: result.plaintext });
+          appStore.setStatus(m.decrypt_success());
+          clipboardStore.scheduleAutoClear();
+        } else {
+          appStore.setStatus(result.message);
+        }
+      } catch (e) {
+        const msg = String(e);
+        if (msg.includes("passphrase") || msg.includes("private key")) {
+          handoff = true;
+          appStore.openModal("passphrase", {
+            onDismiss: release,
+            onSubmit: async (passphrase: string) => {
+              try {
+                const result = await decryptText(text, passphrase);
+                if (result.success) {
+                  appStore.openModal("decrypted-viewer", { plaintext: result.plaintext });
+                  appStore.setStatus(m.decrypt_success());
+                  clipboardStore.scheduleAutoClear();
+                } else {
+                  appStore.openModal("error", { error: result.message });
+                }
+              } catch (e2) {
+                appStore.openModal("error", { error: String(e2) });
+              } finally {
+                release();
               }
-            } catch (e2) {
-              appStore.openModal("error", { error: String(e2) });
-            }
-          },
-        });
-      } else {
-        appStore.openModal("error", { error: msg, suggestion: m.decrypt_wrong_key_hint() });
+            },
+          });
+        } else {
+          appStore.openModal("error", { error: msg, suggestion: m.decrypt_wrong_key_hint() });
+        }
       }
+    } finally {
+      if (!handoff) release();
     }
   }
 
   async function handleSign() {
-    const content = getContent();
-    if (!content) {
-      appStore.setStatus(isCompose ? m.sign_empty_compose() : m.sign_empty_clipboard());
+    const { text, compose, release } = await takeInput();
+    if (!text) {
+      release();
+      appStore.setStatus(compose ? m.sign_empty_compose() : m.sign_empty_clipboard());
       return;
     }
     if (!keyStore.hasOwnKey) {
+      release();
       appStore.setStatus(m.sign_no_key());
       return;
     }
+    const message = text;
     appStore.setStatus(m.sign_in_progress(), 0);
 
     async function doSign(passphrase?: string) {
-      if (isCompose) {
-        const result = await signText(content!, passphrase);
-        if (result.success) {
-          appStore.composeText = result.message;
-          appStore.setStatus(m.sign_success_compose());
-          appStore.closeModal();
-        } else {
-          appStore.openModal("error", { error: result.message });
-        }
-      } else {
-        const result = await signClipboard(passphrase);
-        if (result.success) {
-          appStore.setStatus(result.message);
-          appStore.closeModal();
-          clipboardStore.refresh();
-        } else {
-          appStore.openModal("error", { error: result.message });
-        }
+      const result = await signText(message, passphrase);
+      if (!result.success) {
+        appStore.openModal("error", { error: result.message });
+        return;
       }
+      if (compose) {
+        appStore.composeText = result.message;
+      } else {
+        await writeClipboard(result.message);
+      }
+      appStore.setStatus(m.sign_success_compose());
+      appStore.closeModal();
     }
 
     try {
       await doSign();
+      release();
     } catch (e) {
       const msg = String(e);
       if (msg.includes("passphrase")) {
         appStore.openModal("passphrase", {
+          onDismiss: release,
           onSubmit: async (passphrase: string) => {
             try {
               await doSign(passphrase);
             } catch (e2) {
               appStore.openModal("error", { error: String(e2) });
+            } finally {
+              release();
             }
           },
         });
       } else {
+        release();
         appStore.openModal("error", { error: msg });
       }
     }
   }
 
   async function handleVerify() {
-    const content = getContent();
-    if (!content) {
-      appStore.setStatus(isCompose ? m.verify_empty_compose() : m.verify_empty_clipboard());
-      return;
-    }
-    appStore.setStatus(m.verify_in_progress(), 0);
+    const { text, compose, release } = await takeInput();
     try {
-      const result = isCompose ? await verifyText(content) : await verifyClipboard();
+      if (!text) {
+        appStore.setStatus(compose ? m.verify_empty_compose() : m.verify_empty_clipboard());
+        return;
+      }
+      appStore.setStatus(m.verify_in_progress(), 0);
+      const result = await verifyText(text);
       appStore.openModal("verify-result", { verifyResult: result });
       appStore.setStatus(result.valid ? m.verify_success() : m.verify_failed());
     } catch (e) {
       appStore.openModal("error", { error: String(e) });
+    } finally {
+      release();
     }
   }
 </script>
