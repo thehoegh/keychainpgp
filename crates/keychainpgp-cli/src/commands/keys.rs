@@ -100,6 +100,21 @@ pub fn delete(fingerprint: &str) -> Result<()> {
     Ok(())
 }
 
+pub fn set_alias(fingerprint: &str, alias: Option<&str>) -> Result<()> {
+    let keyring = Keyring::open_default()?;
+    let updated = keyring
+        .set_alias(fingerprint, alias)
+        .with_context(|| format!("failed to set alias for {fingerprint}"))?;
+    if !updated {
+        anyhow::bail!("key not found: {fingerprint}");
+    }
+    match alias.map(str::trim).filter(|value| !value.is_empty()) {
+        Some(value) => eprintln!("Alias set for {fingerprint}: {value}"),
+        None => eprintln!("Alias cleared for {fingerprint}"),
+    }
+    Ok(())
+}
+
 pub fn search(query: &str) -> Result<()> {
     let keyring = Keyring::open_default()?;
     let results = keyring.search_keys(query)?;
@@ -140,6 +155,9 @@ fn print_key_summary(key: &KeyRecord) {
     let revoked = if key.is_revoked { " [REVOKED]" } else { "" };
     println!("{tag}   {:<12} {trust}{revoked}", key.algorithm);
     println!("      {}", key.fingerprint);
+    if let Some(alias) = key.alias.as_deref().filter(|value| !value.is_empty()) {
+        println!("      alias: {alias}");
+    }
     println!("      {name}{email}{expires}");
 }
 

@@ -106,10 +106,23 @@ enum KeysAction {
         fingerprint: String,
     },
 
-    /// Search keys by name, email, or fingerprint
+    /// Search keys by alias, name, email, or fingerprint
     Search {
         /// Search query
         query: String,
+    },
+
+    /// Set or clear a local alias
+    Alias {
+        /// Fingerprint of the key
+        fingerprint: String,
+
+        /// Alias to store. Omit when using --clear.
+        alias: Option<String>,
+
+        /// Remove the alias
+        #[arg(long, conflicts_with = "alias")]
+        clear: bool,
     },
 }
 
@@ -183,6 +196,20 @@ fn main() -> anyhow::Result<()> {
             KeysAction::Export { fingerprint } => commands::keys::export(&fingerprint)?,
             KeysAction::Delete { fingerprint } => commands::keys::delete(&fingerprint)?,
             KeysAction::Search { query } => commands::keys::search(&query)?,
+            KeysAction::Alias {
+                fingerprint,
+                alias,
+                clear,
+            } => {
+                if clear {
+                    commands::keys::set_alias(&fingerprint, None)?;
+                } else {
+                    let Some(alias) = alias else {
+                        anyhow::bail!("provide an alias or pass --clear to remove the current one");
+                    };
+                    commands::keys::set_alias(&fingerprint, Some(&alias))?;
+                }
+            }
         },
     }
 
