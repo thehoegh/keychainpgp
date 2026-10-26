@@ -49,13 +49,12 @@ export const clipboardStore = {
   },
 
   /**
-   * Pin `snapshot` until `release()`. Omit `snapshot` to freeze `content`
-   * as it already is. In-flight polls cannot replace the pin, so copying a
-   * passphrase does not replace the message being encrypted, decrypted, or signed.
+   * Pin `snapshot` until `release()`. In-flight polls cannot replace it,
+   * so copying a passphrase does not replace the message.
    */
-  hold(snapshot?: string | null) {
+  hold(snapshot: string | null) {
     holdClipboardRead(reads);
-    if (snapshot !== undefined) content = snapshot;
+    content = snapshot;
   },
 
   release() {
