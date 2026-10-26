@@ -6,7 +6,7 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug! Please fill out the sections below.
-        **Do NOT report security vulnerabilities here** — email keychainpgp@protonmail.com instead.
+        **Do NOT report security vulnerabilities here** — use https://github.com/thehoegh/keychainpgp/security/advisories/new instead.
 
   - type: input
     id: version

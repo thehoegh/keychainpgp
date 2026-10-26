@@ -5,4 +5,15 @@ ignore = [
     # rsa 0.9.10 — Marvin Attack timing sidechannel
     # No fix available; transitive dependency via sequoia-openpgp
     "RUSTSEC-2023-0071",
+
+    # crypto-bigint 0.5.5 — timing variability in constant-time operations
+    # Fix requires >=0.7.6; elliptic-curve 0.13 (ecdsa/p256/p384/p521 via
+    # sequoia-openpgp crypto-rust backend) is pinned to 0.5, even in sequoia 2.4.2
+    "RUSTSEC-2026-0387",
+
+    # quick-xml 0.37/0.38/0.39 — DoS on malicious XML (fix requires >=0.41.0)
+    # Only reached via tauri-winrt-notification, plist (Tauri) and the
+    # wayland-scanner proc-macro; none of these parse untrusted input
+    "RUSTSEC-2026-0194",
+    "RUSTSEC-2026-0195",
 ]

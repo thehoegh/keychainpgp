@@ -7,7 +7,7 @@ The full text is available at:
 
 ## Enforcement
 
-Instances of unacceptable behavior may be reported to the project maintainers at **keychainpgp@protonmail.com**. All complaints will be reviewed and investigated promptly and fairly.
+Instances of unacceptable behavior may be reported privately to the project maintainer via [GitHub Security Advisories](https://github.com/thehoegh/keychainpgp/security/advisories/new). All complaints will be reviewed and investigated promptly and fairly.
 
 ## Attribution
 
