@@ -6,7 +6,7 @@ If you discover a security vulnerability in KeychainPGP, please report it respon
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email: **keychainpgp@protonmail.com**
+Instead, open a private report: **https://github.com/thehoegh/keychainpgp/security/advisories/new**
 
 Include:
 - Description of the vulnerability

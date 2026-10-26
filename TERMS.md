@@ -65,6 +65,6 @@ Changes to these terms will be documented in the project's Git history and relea
 
 ## Contact
 
-For questions about these terms: **keychainpgp@protonmail.com**
+For questions about these terms, open an issue on [GitHub](https://github.com/thehoegh/keychainpgp/issues).
 
-For general inquiries, open an issue on [GitHub](https://github.com/keychainpgp/keychainpgp/issues).
+For private inquiries, use [GitHub Security Advisories](https://github.com/thehoegh/keychainpgp/security/advisories/new).

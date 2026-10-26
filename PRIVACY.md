@@ -61,6 +61,6 @@ Changes to this policy will be documented in the project's Git history and relea
 
 ## Contact
 
-For privacy-related questions: **keychainpgp@protonmail.com**
+For privacy-related questions, open a private report: **https://github.com/thehoegh/keychainpgp/security/advisories/new**
 
-For general inquiries, open an issue on [GitHub](https://github.com/keychainpgp/keychainpgp/issues).
+For general inquiries, open an issue on [GitHub](https://github.com/thehoegh/keychainpgp/issues).

@@ -63,7 +63,7 @@ impl SequoiaEngine {
                     "Version",
                     concat!("KeychainPGP ", env!("CARGO_PKG_VERSION")),
                 ),
-                ("Comment", "https://keychainpgp.org"),
+                ("Comment", "https://github.com/thehoegh/keychainpgp"),
             ];
             headers.extend_from_slice(extra);
             sequoia_openpgp::armor::Writer::with_headers(output, kind, headers)
