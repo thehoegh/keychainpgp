@@ -6,7 +6,7 @@
 </script>
 
 <div
-  class="relative min-h-32 rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"
+  class="relative flex min-h-32 flex-col rounded-lg border border-[var(--color-border)] bg-[var(--color-bg-secondary)] p-4"
 >
   <div class="mb-2 flex items-center justify-between">
     <span class="text-xs font-medium tracking-wide text-[var(--color-text-secondary)] uppercase">
@@ -36,13 +36,17 @@
     </div>
   </div>
 
-  {#if clipboardStore.content}
-    <p class="font-mono text-sm break-all whitespace-pre-wrap text-[var(--color-text)]">
-      {truncate(clipboardStore.content, 500)}
-    </p>
-  {:else}
-    <p class="text-sm text-[var(--color-text-secondary)] italic">
-      {m.clipboard_empty()}
-    </p>
-  {/if}
+  <div
+    class="max-h-60 min-h-24 w-full overflow-y-auto font-mono text-sm break-all whitespace-pre-wrap"
+  >
+    {#if clipboardStore.content}
+      <p class="text-[var(--color-text)]">
+        {truncate(clipboardStore.content, 500)}
+      </p>
+    {:else}
+      <p class="text-[var(--color-text-secondary)]">
+        {m.clipboard_empty()}
+      </p>
+    {/if}
+  </div>
 </div>
