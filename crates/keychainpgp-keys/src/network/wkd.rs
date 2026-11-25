@@ -71,14 +71,12 @@ pub async fn wkd_lookup(email: &str, proxy_url: Option<&str>) -> Result<Vec<u8>,
     let advanced_url =
         format!("https://openpgpkey.{domain}/.well-known/openpgpkey/{domain}/hu/{hash}?l={local}");
 
-    if let Ok(response) = client.get(&advanced_url).send().await {
-        if response.status().is_success() {
-            if let Ok(bytes) = response.bytes().await {
-                if !bytes.is_empty() {
-                    return Ok(bytes.to_vec());
-                }
-            }
-        }
+    if let Ok(response) = client.get(&advanced_url).send().await
+        && response.status().is_success()
+        && let Ok(bytes) = response.bytes().await
+        && !bytes.is_empty()
+    {
+        return Ok(bytes.to_vec());
     }
 
     // Fall back to direct method

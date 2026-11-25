@@ -349,15 +349,15 @@ fn parse_user_id(uid: &sequoia_openpgp::packet::UserID) -> UserId {
     let raw = String::from_utf8_lossy(uid.value()).to_string();
 
     // Try to extract email from angle brackets
-    if let (Some(open), Some(close)) = (raw.rfind('<'), raw.rfind('>')) {
-        if open < close {
-            let email = raw[open + 1..close].trim().to_string();
-            let name = raw[..open].trim().to_string();
-            return UserId {
-                name: if name.is_empty() { None } else { Some(name) },
-                email: if email.is_empty() { None } else { Some(email) },
-            };
-        }
+    if let (Some(open), Some(close)) = (raw.rfind('<'), raw.rfind('>'))
+        && open < close
+    {
+        let email = raw[open + 1..close].trim().to_string();
+        let name = raw[..open].trim().to_string();
+        return UserId {
+            name: if name.is_empty() { None } else { Some(name) },
+            email: if email.is_empty() { None } else { Some(email) },
+        };
     }
 
     // If no angle brackets, check if it looks like an email
@@ -659,24 +659,24 @@ impl CryptoEngine for SequoiaEngine {
         }
 
         // Try with passphrase
-        if keypair.is_none() {
-            if let Some(passphrase) = passphrase {
-                let password = sequoia_openpgp::crypto::Password::from(passphrase);
-                for ka in valid_cert
-                    .keys()
-                    .supported()
-                    .alive()
-                    .revoked(false)
-                    .for_signing()
-                    .secret()
+        if keypair.is_none()
+            && let Some(passphrase) = passphrase
+        {
+            let password = sequoia_openpgp::crypto::Password::from(passphrase);
+            for ka in valid_cert
+                .keys()
+                .supported()
+                .alive()
+                .revoked(false)
+                .for_signing()
+                .secret()
+            {
+                let key = ka.key().clone();
+                if let Ok(decrypted) = key.decrypt_secret(&password)
+                    && let Ok(kp) = decrypted.into_keypair()
                 {
-                    let key = ka.key().clone();
-                    if let Ok(decrypted) = key.decrypt_secret(&password) {
-                        if let Ok(kp) = decrypted.into_keypair() {
-                            keypair = Some(kp);
-                            break;
-                        }
-                    }
+                    keypair = Some(kp);
+                    break;
                 }
             }
         }
@@ -1019,16 +1019,16 @@ impl DecryptionHelper for DecryptHelper<'_> {
                 .for_storage_encryption()
             {
                 let key = ka.key().clone();
-                if let Ok(decrypted) = key.decrypt_secret(&password) {
-                    if let Ok(mut keypair) = decrypted.into_keypair() {
-                        for pkesk in pkesks {
-                            if pkesk
-                                .decrypt(&mut keypair, sym_algo)
-                                .map(|(algo, sk)| decrypt(algo, &sk))
-                                .unwrap_or(false)
-                            {
-                                return Ok(None);
-                            }
+                if let Ok(decrypted) = key.decrypt_secret(&password)
+                    && let Ok(mut keypair) = decrypted.into_keypair()
+                {
+                    for pkesk in pkesks {
+                        if pkesk
+                            .decrypt(&mut keypair, sym_algo)
+                            .map(|(algo, sk)| decrypt(algo, &sk))
+                            .unwrap_or(false)
+                        {
+                            return Ok(None);
                         }
                     }
                 }
@@ -1201,7 +1201,7 @@ mod tests {
 
         let plaintext = b"Hello, this is a secret message!";
         let ciphertext = engine
-            .encrypt(plaintext, &[key_pair.public_key.clone()])
+            .encrypt(plaintext, std::slice::from_ref(&key_pair.public_key))
             .unwrap();
 
         assert!(!ciphertext.is_empty());
@@ -1270,7 +1270,7 @@ mod tests {
             .unwrap();
 
         let ciphertext = engine
-            .encrypt(b"secret", &[sender.public_key.clone()])
+            .encrypt(b"secret", std::slice::from_ref(&sender.public_key))
             .unwrap();
 
         let result = engine.decrypt(&ciphertext, wrong.secret_key.expose_secret(), None);

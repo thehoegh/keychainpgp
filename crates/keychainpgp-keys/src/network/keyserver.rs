@@ -407,12 +407,12 @@ fn parse_mr_index(body: &str) -> Vec<KeyserverMatch> {
                 });
             }
             "uid" => {
-                if let Some(ref mut k) = current_key {
-                    if parts.len() > 1 {
-                        // HKP escapes certain characters in UIDs
-                        let uid = hkr_unescape(parts[1]);
-                        k.user_ids.push(uid);
-                    }
+                if let Some(ref mut k) = current_key
+                    && parts.len() > 1
+                {
+                    // HKP escapes certain characters in UIDs
+                    let uid = hkr_unescape(parts[1]);
+                    k.user_ids.push(uid);
                 }
             }
             _ => {}
@@ -443,12 +443,12 @@ fn hkr_unescape(input: &str) -> String {
         if bytes[i] == b'%' && i + 2 < bytes.len() {
             let hex_bytes = &bytes[i + 1..=i + 2];
             // Safely attempt to parse the next two bytes as a hex string
-            if let Ok(hex_str) = std::str::from_utf8(hex_bytes) {
-                if let Ok(byte) = u8::from_str_radix(hex_str, 16) {
-                    result_bytes.push(byte);
-                    i += 3;
-                    continue;
-                }
+            if let Ok(hex_str) = std::str::from_utf8(hex_bytes)
+                && let Ok(byte) = u8::from_str_radix(hex_str, 16)
+            {
+                result_bytes.push(byte);
+                i += 3;
+                continue;
             }
         }
 
