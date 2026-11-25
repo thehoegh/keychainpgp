@@ -15,23 +15,32 @@ pub struct ImportedKey {
 
 /// Parse raw bytes and determine if they contain valid PGP key material.
 ///
-/// Accepts both ASCII-armored and binary OpenPGP key data.
+/// A file that contains both a public key block and a private key block
+/// returns each block separately. The public key's bytes do not include the
+/// private key block.
 pub fn parse_import(data: &[u8]) -> Result<Vec<ImportedKey>> {
-    let mut keys = Vec::new();
+    let Ok(text) = std::str::from_utf8(data) else {
+        return Err(Error::InvalidKey {
+            reason: "data does not contain a recognized PGP key block".into(),
+        });
+    };
 
-    if armor::is_pgp_public_key(data) {
+    let mut keys = Vec::new();
+    let public_keys = armor::public_key_blocks(text);
+    let private_keys = armor::private_key_blocks(text);
+    if !public_keys.is_empty() {
         keys.push(ImportedKey {
-            data: data.to_vec(),
+            data: public_keys.into_bytes(),
             is_secret: false,
         });
-    } else if armor::is_pgp_private_key(data) {
+    }
+    if !private_keys.is_empty() {
         keys.push(ImportedKey {
-            data: data.to_vec(),
+            data: private_keys.into_bytes(),
             is_secret: true,
         });
-    } else {
-        // Attempt to parse as binary OpenPGP data
-        // For now, return an error; Sequoia can handle this at the keyring level
+    }
+    if keys.is_empty() {
         return Err(Error::InvalidKey {
             reason: "data does not contain a recognized PGP key block".into(),
         });
@@ -43,4 +52,22 @@ pub fn parse_import(data: &[u8]) -> Result<Vec<ImportedKey>> {
 /// Read key data from a file path.
 pub fn read_key_file(path: &std::path::Path) -> Result<Vec<u8>> {
     std::fs::read(path).map_err(Error::Io)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn combined_file_does_not_keep_the_private_block_in_the_public_key() {
+        let data = b"-----BEGIN PGP PUBLIC KEY BLOCK-----\n\nabc\n-----END PGP PUBLIC KEY BLOCK-----\n-----BEGIN PGP PRIVATE KEY BLOCK-----\n\nsecret\n-----END PGP PRIVATE KEY BLOCK-----\n";
+        let keys = parse_import(data).unwrap();
+        assert_eq!(keys.len(), 2);
+        assert!(!keys[0].is_secret);
+        let public_key = String::from_utf8(keys[0].data.clone()).unwrap();
+        assert!(public_key.contains("BEGIN PGP PUBLIC KEY BLOCK"));
+        assert!(!public_key.contains("PRIVATE KEY BLOCK"));
+        assert!(keys[1].is_secret);
+        assert!(String::from_utf8_lossy(&keys[1].data).contains("PRIVATE KEY BLOCK"));
+    }
 }

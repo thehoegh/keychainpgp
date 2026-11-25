@@ -45,9 +45,10 @@ pub fn export_key_bundle(
             None
         };
 
+        let public_key = super::keys::public_key_armored(&state, &key.pgp_data)?.into_bytes();
         entries.push(keychainpgp_keys::sync::KeyBundleEntry {
             fingerprint: key.fingerprint.clone(),
-            public_key: key.pgp_data.clone(),
+            public_key,
             secret_key,
             trust_level: key.trust_level,
             alias: key.alias.clone(),
@@ -169,10 +170,12 @@ pub fn import_key_bundle(
             }
         }
 
-        // Import using the engine to inspect and validate
+        // Import using the engine to inspect and validate. A private key
+        // block bundled with the public key is not stored in `pgp_data`.
+        let public_key = super::keys::public_key_armored(&state, &entry.public_key)?;
         let cert_info = state
             .engine
-            .inspect_key(&entry.public_key)
+            .inspect_key(public_key.as_bytes())
             .map_err(|e| format!("Invalid key in bundle: {e}"))?;
 
         let record = keychainpgp_keys::KeyRecord {
@@ -189,7 +192,7 @@ pub fn import_key_bundle(
                 .alias
                 .clone()
                 .or_else(|| existing.as_ref().and_then(|key| key.alias.clone())),
-            pgp_data: entry.public_key.clone(),
+            pgp_data: public_key.into_bytes(),
         };
 
         if let Some(ref secret_key) = entry.secret_key {
