@@ -8,6 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Compose can attach a public key from the keyring to the end of the message when encrypting
 - Local aliases for keys, shown in place of the certificate name and included in search and sync
 - Full HKP/VKS keyserver support with machine-readable index parsing
 - Multi-server parallel search support (comma-separated URLs)

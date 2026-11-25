@@ -6,9 +6,10 @@
   import { appStore } from "$lib/stores/app.svelte";
   import { clipboardStore } from "$lib/stores/clipboard.svelte";
   import { keyStore } from "$lib/stores/keys.svelte";
-  import { isPgpMessage } from "$lib/utils";
   import { isDesktop } from "$lib/platform";
-  import { decryptText, signText, verifyText, writeClipboard } from "$lib/tauri";
+  import { appendPublicKey } from "$lib/append-public-key";
+  import { isPgpMessage, isPgpPublicKey } from "$lib/utils";
+  import { decryptText, exportKey, signText, verifyText, writeClipboard } from "$lib/tauri";
   import * as m from "$lib/paraglide/messages.js";
 
   let isCompose = $derived(appStore.inputMode === "compose");
@@ -82,7 +83,43 @@
       appStore.setStatus(m.encrypt_no_keys());
       return;
     }
-    appStore.openModal("recipient-selector", { text, onDismiss: release });
+    let message = text;
+    if (compose && appStore.composeAttachedFingerprint) {
+      try {
+        const withKey = await messageWithAttachedKey(message);
+        if (withKey === null) {
+          release();
+          return;
+        }
+        message = withKey;
+      } catch (e) {
+        release();
+        appStore.openModal("error", { error: String(e) });
+        return;
+      }
+    }
+    appStore.openModal("recipient-selector", { text: message, onDismiss: release });
+  }
+
+  /**
+   * Append the compose field's selected public key. Returns null when encrypt
+   * should stop because that key can no longer be attached.
+   */
+  async function messageWithAttachedKey(text: string): Promise<string | null> {
+    const fp = appStore.composeAttachedFingerprint;
+    if (!fp) return text;
+    const available = keyStore.keys.some((k) => k.fingerprint === fp && !k.is_revoked);
+    if (!available) {
+      appStore.composeAttachedFingerprint = null;
+      appStore.setStatus(m.compose_attach_missing());
+      return null;
+    }
+    const armored = await exportKey(fp);
+    if (!isPgpPublicKey(armored)) {
+      appStore.openModal("error", { error: m.compose_attach_invalid() });
+      return null;
+    }
+    return appendPublicKey(text, armored);
   }
 
   async function handleDecrypt() {
