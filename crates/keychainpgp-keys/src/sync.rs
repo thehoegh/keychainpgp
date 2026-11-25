@@ -213,23 +213,22 @@ pub fn reassemble_from_qr(parts: &[String]) -> Result<Vec<u8>, String> {
 
         if let Some(fheader) = header.strip_prefix('F') {
             // Fountain parity part: F<i>+<j>/<total>
-            if let Some((indices, total_s)) = fheader.split_once('/') {
-                if let Some((i_s, j_s)) = indices.split_once('+') {
-                    if let (Ok(i), Ok(j), Ok(total)) = (
-                        i_s.parse::<usize>(),
-                        j_s.parse::<usize>(),
-                        total_s.parse::<usize>(),
-                    ) {
-                        expected_total = expected_total.max(total);
-                        fountain.push((i, j, data.to_string()));
-                    }
-                }
-            }
-        } else if let Some((part_s, total_s)) = header.split_once('/') {
-            if let (Ok(part), Ok(total)) = (part_s.parse::<usize>(), total_s.parse::<usize>()) {
+            if let Some((indices, total_s)) = fheader.split_once('/')
+                && let Some((i_s, j_s)) = indices.split_once('+')
+                && let (Ok(i), Ok(j), Ok(total)) = (
+                    i_s.parse::<usize>(),
+                    j_s.parse::<usize>(),
+                    total_s.parse::<usize>(),
+                )
+            {
                 expected_total = expected_total.max(total);
-                data_map.insert(part, data.to_string());
+                fountain.push((i, j, data.to_string()));
             }
+        } else if let Some((part_s, total_s)) = header.split_once('/')
+            && let (Ok(part), Ok(total)) = (part_s.parse::<usize>(), total_s.parse::<usize>())
+        {
+            expected_total = expected_total.max(total);
+            data_map.insert(part, data.to_string());
         }
     }
 
