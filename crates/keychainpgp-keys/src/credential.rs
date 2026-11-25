@@ -56,11 +56,11 @@ impl CredentialStore {
         self.store_to_file(fingerprint, secret_key)?;
 
         // Also try OS credential store for faster retrieval (skip in portable mode)
-        if !self.portable {
-            if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint) {
-                let encoded = base64_encode(secret_key);
-                let _ = entry.set_secret(encoded.as_bytes());
-            }
+        if !self.portable
+            && let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint)
+        {
+            let encoded = base64_encode(secret_key);
+            let _ = entry.set_secret(encoded.as_bytes());
         }
 
         Ok(())
@@ -72,15 +72,13 @@ impl CredentialStore {
         Self::validate_fingerprint(fingerprint)?;
 
         // Try OS credential store first (skip in portable mode)
-        if !self.portable {
-            if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint) {
-                if let Ok(mut encoded) = entry.get_secret() {
-                    if let Ok(decoded) = base64_decode(&encoded) {
-                        encoded.zeroize();
-                        return Ok(SecretBox::new(Box::new(decoded)));
-                    }
-                }
-            }
+        if !self.portable
+            && let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint)
+            && let Ok(mut encoded) = entry.get_secret()
+            && let Ok(decoded) = base64_decode(&encoded)
+        {
+            encoded.zeroize();
+            return Ok(SecretBox::new(Box::new(decoded)));
         }
 
         // Fall back to file-based storage
@@ -92,10 +90,10 @@ impl CredentialStore {
         Self::validate_fingerprint(fingerprint)?;
 
         // Try OS credential store (ignore errors, skip in portable mode)
-        if !self.portable {
-            if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint) {
-                let _ = entry.delete_credential();
-            }
+        if !self.portable
+            && let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint)
+        {
+            let _ = entry.delete_credential();
         }
 
         // Overwrite file with zeros before deleting to minimize residual data on disk.
@@ -173,12 +171,11 @@ impl CredentialStore {
         }
 
         // Check OS credential store (skip in portable mode)
-        if !self.portable {
-            if let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint) {
-                if entry.get_secret().is_ok() {
-                    return true;
-                }
-            }
+        if !self.portable
+            && let Ok(entry) = keyring::Entry::new(SERVICE_NAME, fingerprint)
+            && entry.get_secret().is_ok()
+        {
+            return true;
         }
 
         // Check file store

@@ -269,7 +269,7 @@ fn test_passphrase_protected_key() {
 
     // Encrypt to the key
     let ciphertext = engine
-        .encrypt(plaintext, &[key_pair.public_key.clone()])
+        .encrypt(plaintext, std::slice::from_ref(&key_pair.public_key))
         .unwrap();
 
     // Decrypt WITH passphrase should succeed
@@ -334,7 +334,7 @@ fn test_full_pipeline_generate_store_encrypt_sign_verify_decrypt() {
 
     // Alice encrypts to Bob
     let ciphertext = engine
-        .encrypt(message, &[bob_record.pgp_data.clone()])
+        .encrypt(message, std::slice::from_ref(&bob_record.pgp_data))
         .unwrap();
 
     // Alice signs the ciphertext
