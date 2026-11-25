@@ -45,7 +45,8 @@ fn encrypt_impl(
             .get_key(fp)
             .map_err(|e| format!("Failed to look up key: {e}"))?
             .ok_or_else(|| format!("Key not found: {fp}"))?;
-        recipient_keys.push(record.pgp_data);
+        let public_key = super::keys::public_key_armored(state, &record.pgp_data)?;
+        recipient_keys.push(public_key.into_bytes());
     }
 
     drop(keyring);
@@ -330,9 +331,13 @@ fn verify_impl(state: &AppState, signed_text: &str) -> Result<VerifyResultInfo, 
     }
 
     for key_record in &all_keys {
+        let public_key = match super::keys::public_key_armored(state, &key_record.pgp_data) {
+            Ok(public_key) => public_key,
+            Err(_) => continue,
+        };
         match state
             .engine
-            .verify(signed_text.as_bytes(), &key_record.pgp_data)
+            .verify(signed_text.as_bytes(), public_key.as_bytes())
         {
             Ok(result) if result.valid => {
                 return Ok(VerifyResultInfo {

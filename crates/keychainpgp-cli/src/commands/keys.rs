@@ -31,6 +31,11 @@ pub fn import(file: &Path) -> Result<()> {
         .inspect_key(&data)
         .with_context(|| format!("failed to parse key from {}", file.display()))?;
 
+    let material = engine
+        .split_imported_key(&data)
+        .with_context(|| format!("failed to parse key from {}", file.display()))?;
+    let has_secret = material.secret_key.is_some();
+
     let name = info.name().map(String::from);
     let email = info.email().map(String::from);
     let display = match (&name, &email) {
@@ -40,38 +45,24 @@ pub fn import(file: &Path) -> Result<()> {
         (None, None) => info.fingerprint.0.clone(),
     };
 
-    if info.has_secret_key {
-        let keyring = Keyring::open_default()?;
-        let record = KeyRecord {
-            fingerprint: info.fingerprint.0.clone(),
-            name,
-            email,
-            algorithm: info.algorithm.to_string(),
-            created_at: info.created_at.clone(),
-            expires_at: info.expires_at.clone(),
-            trust_level: 2, // own key = verified
-            is_own_key: true,
-            is_revoked: info.is_revoked,
-            alias: None,
-            pgp_data: data.clone(),
-        };
-        keyring.store_generated_key(record, &data)?;
+    let keyring = Keyring::open_default()?;
+    let record = KeyRecord {
+        fingerprint: info.fingerprint.0.clone(),
+        name,
+        email,
+        algorithm: info.algorithm.to_string(),
+        created_at: info.created_at.clone(),
+        expires_at: info.expires_at.clone(),
+        trust_level: if has_secret { 2 } else { 1 },
+        is_own_key: has_secret,
+        is_revoked: info.is_revoked,
+        alias: None,
+        pgp_data: material.pgp_data,
+    };
+    if let Some(secret) = material.secret_key {
+        keyring.store_generated_key(record, &secret)?;
         eprintln!("Secret key imported: {display}");
     } else {
-        let keyring = Keyring::open_default()?;
-        let record = KeyRecord {
-            fingerprint: info.fingerprint.0.clone(),
-            name,
-            email,
-            algorithm: info.algorithm.to_string(),
-            created_at: info.created_at.clone(),
-            expires_at: info.expires_at.clone(),
-            trust_level: 1, // imported = unverified
-            is_own_key: false,
-            is_revoked: info.is_revoked,
-            alias: None,
-            pgp_data: data,
-        };
         keyring.import_public_key(record)?;
         eprintln!("Public key imported: {display}");
     }
@@ -86,7 +77,11 @@ pub fn export(fingerprint: &str) -> Result<()> {
         .get_key(fingerprint)?
         .with_context(|| format!("key not found: {fingerprint}"))?;
 
-    print!("{}", String::from_utf8_lossy(&record.pgp_data));
+    let engine = SequoiaEngine::new();
+    let public_key = engine
+        .export_public_key_text(&record.pgp_data)
+        .with_context(|| format!("failed to export public key {fingerprint}"))?;
+    print!("{public_key}");
     Ok(())
 }
 

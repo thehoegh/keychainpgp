@@ -215,10 +215,21 @@ pub fn list_keys(state: State<'_, AppState>) -> Result<Vec<KeyInfo>, String> {
 /// Import a key from ASCII-armored text.
 #[tauri::command]
 pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInfo, String> {
+    import_key_with_state(&state, key_data)
+}
+
+fn import_key_with_state(state: &AppState, key_data: String) -> Result<KeyInfo, String> {
     let cert_info = state
         .engine
         .inspect_key(key_data.as_bytes())
         .map_err(|e| format!("Invalid key data: {e}"))?;
+    // A public key block followed by a private key block parses as a public
+    // certificate. Split before storing so `pgp_data` stays a public key.
+    let material = state
+        .engine
+        .split_imported_key(key_data.as_bytes())
+        .map_err(|e| format!("Invalid key data: {e}"))?;
+    let has_secret = material.secret_key.is_some();
 
     let name = cert_info.name().map(String::from);
     let email = cert_info.email().map(String::from);
@@ -230,11 +241,11 @@ pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInf
         algorithm: cert_info.algorithm.to_string(),
         created_at: cert_info.created_at,
         expires_at: cert_info.expires_at,
-        trust_level: if cert_info.has_secret_key { 2 } else { 1 },
-        is_own_key: cert_info.has_secret_key,
+        trust_level: if has_secret { 2 } else { 1 },
+        is_own_key: has_secret,
         is_revoked: cert_info.is_revoked,
         alias: None,
-        pgp_data: key_data.as_bytes().to_vec(),
+        pgp_data: material.pgp_data,
     };
 
     let keyring = state
@@ -254,8 +265,11 @@ pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInf
         ));
     }
 
-    if cert_info.has_secret_key && state.opsec_mode.load(Ordering::SeqCst) {
+    if has_secret && state.opsec_mode.load(Ordering::SeqCst) {
         // OPSEC mode: store secret key in RAM only, public key in DB
+        let secret = material
+            .secret_key
+            .ok_or_else(|| "Secret key missing after import".to_string())?;
         keyring
             .import_public_key(record.clone())
             .map_err(|e| format!("Failed to import key: {e}"))?;
@@ -263,13 +277,10 @@ pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInf
             .opsec_secret_keys
             .lock()
             .map_err(|e| format!("Internal error: {e}"))?;
-        opsec_keys.insert(
-            record.fingerprint.clone(),
-            zeroize::Zeroizing::new(key_data.as_bytes().to_vec()),
-        );
-    } else if cert_info.has_secret_key {
+        opsec_keys.insert(record.fingerprint.clone(), zeroize::Zeroizing::new(secret));
+    } else if let Some(secret) = material.secret_key {
         keyring
-            .store_generated_key(record.clone(), key_data.as_bytes())
+            .store_generated_key(record.clone(), &secret)
             .map_err(|e| format!("Failed to import key: {e}"))?;
     } else {
         keyring
@@ -280,19 +291,34 @@ pub fn import_key(state: State<'_, AppState>, key_data: String) -> Result<KeyInf
     Ok(KeyInfo::from(record))
 }
 
+/// ASCII-armored public key for `pgp_data`, without any private key block.
+pub(crate) fn public_key_armored(state: &AppState, pgp_data: &[u8]) -> Result<String, String> {
+    state
+        .engine
+        .export_public_key_text(pgp_data)
+        .map_err(|e| format!("Failed to export public key: {e}"))
+}
+
 /// Export a public key as ASCII-armored text.
 #[tauri::command]
 pub fn export_key(state: State<'_, AppState>, fingerprint: String) -> Result<String, String> {
-    let keyring = state
-        .keyring
-        .lock()
-        .map_err(|e| format!("Internal error: {e}"))?;
-    let record = keyring
-        .get_key(&fingerprint)
-        .map_err(|e| format!("Failed to look up key: {e}"))?
-        .ok_or_else(|| format!("Key not found: {fingerprint}"))?;
+    export_key_with_state(&state, &fingerprint)
+}
 
-    Ok(String::from_utf8_lossy(&record.pgp_data).into_owned())
+fn export_key_with_state(state: &AppState, fingerprint: &str) -> Result<String, String> {
+    let pgp_data = {
+        let keyring = state
+            .keyring
+            .lock()
+            .map_err(|e| format!("Internal error: {e}"))?;
+        let record = keyring
+            .get_key(fingerprint)
+            .map_err(|e| format!("Failed to look up key: {e}"))?
+            .ok_or_else(|| format!("Key not found: {fingerprint}"))?;
+        record.pgp_data
+    };
+
+    public_key_armored(state, &pgp_data)
 }
 
 /// Delete a key from the keyring.
@@ -480,7 +506,7 @@ pub fn export_key_qr(state: State<'_, AppState>, fingerprint: String) -> Result<
         .map_err(|e| format!("Failed to look up key: {e}"))?
         .ok_or_else(|| format!("Key not found: {fingerprint}"))?;
 
-    let key_text = String::from_utf8_lossy(&record.pgp_data).into_owned();
+    let key_text = public_key_armored(&state, &record.pgp_data)?;
 
     let qr = qrcode::QrCode::new(key_text.as_bytes())
         .map_err(|e| format!("Key is too large for a QR code: {e}"))?;
@@ -552,9 +578,10 @@ pub async fn wkd_fetch_and_import(
         .await
         .map_err(|e| e.to_string())?;
 
+    let pgp_data = public_key_armored(&state, &key_bytes)?.into_bytes();
     let cert_info = state
         .engine
-        .inspect_key(&key_bytes)
+        .inspect_key(&pgp_data)
         .map_err(|e| format!("Invalid key data from WKD: {e}"))?;
 
     let name = cert_info.name().map(String::from);
@@ -571,7 +598,7 @@ pub async fn wkd_fetch_and_import(
         is_own_key: false,
         is_revoked: cert_info.is_revoked,
         alias: None,
-        pgp_data: key_bytes,
+        pgp_data,
     };
 
     let keyring = state
@@ -768,7 +795,9 @@ pub async fn fetch_and_import_key(
         match keyserver_fetch(&fingerprint, url, proxy.as_deref()).await {
             Ok(key_data) => {
                 verify_fetched_key(&state, &key_data, &fingerprint)?;
-                let key_text = String::from_utf8_lossy(&key_data).into_owned();
+                // Keyservers publish public keys. Drop a trailing private key
+                // block before import so it is not stored as this device's key.
+                let key_text = public_key_armored(&state, &key_data)?;
                 return import_key(state, key_text);
             }
             Err(e) => last_error = e,
@@ -813,7 +842,7 @@ pub async fn keyserver_upload(
             .get_key(&fingerprint)
             .map_err(|e| format!("Failed to look up key: {e}"))?
             .ok_or_else(|| format!("Key not found: {fingerprint}"))?;
-        record.pgp_data.clone()
+        public_key_armored(&state, &record.pgp_data)?.into_bytes()
     };
 
     let (successes, failures) =
@@ -1204,5 +1233,56 @@ mod tests {
             },
             custom_url
         );
+    }
+
+    #[test]
+    fn import_of_combined_key_does_not_keep_the_private_block() {
+        use secrecy::ExposeSecret;
+
+        let (state, _tmp) = setup();
+        state.keyring.lock().unwrap().set_portable(true);
+
+        let user_id = UserId::new("Combined Import", "combined-import@example.com");
+        let key_pair = state
+            .engine
+            .generate_key_pair(KeyGenOptions::new(user_id))
+            .unwrap();
+        let public_key = String::from_utf8(key_pair.public_key.clone()).unwrap();
+        let secret_key = String::from_utf8(key_pair.secret_key.expose_secret().clone()).unwrap();
+        let combined = format!("{public_key}\n{secret_key}");
+
+        // The prefix check used when attaching a key accepts this file.
+        assert!(
+            combined
+                .trim_start()
+                .starts_with("-----BEGIN PGP PUBLIC KEY BLOCK-----")
+        );
+        assert!(combined.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        assert!(
+            !state
+                .engine
+                .inspect_key(combined.as_bytes())
+                .unwrap()
+                .has_secret_key
+        );
+
+        let imported = import_key_with_state(&state, combined).unwrap();
+        assert!(imported.is_own_key);
+
+        let stored = state
+            .keyring
+            .lock()
+            .unwrap()
+            .get_key(&imported.fingerprint)
+            .unwrap()
+            .unwrap();
+        let stored_text = String::from_utf8(stored.pgp_data).unwrap();
+        assert!(stored_text.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(!stored_text.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+
+        let exported = export_key_with_state(&state, &imported.fingerprint).unwrap();
+        assert!(exported.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(!exported.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        assert!(!exported.contains("PRIVATE KEY"));
     }
 }
