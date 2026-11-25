@@ -33,6 +33,10 @@ pub enum Error {
     #[error("invalid ASCII armor: {reason}")]
     InvalidArmor { reason: String },
 
+    /// An armor header value cannot be emitted safely.
+    #[error("invalid armor header: {reason}")]
+    InvalidArmorHeader { reason: String },
+
     /// A key has expired.
     #[error("key expired on {expiration}")]
     KeyExpired { expiration: String },
