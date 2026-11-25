@@ -8,9 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Settings and CLI flags for the armor `Version` and `Comment` headers, including a custom comment
 - Local aliases for keys, shown in place of the certificate name and included in search and sync
 - Full HKP/VKS keyserver support with machine-readable index parsing
 - Multi-server parallel search support (comma-separated URLs)
+
+### Changed
+- Armor headers are off by default, and OPSEC mode omits them
 
 ### Fixed
 - Broken keyserver search functionality where WKD lookup failures (e.g., for Gmail) would block all results from keyservers
