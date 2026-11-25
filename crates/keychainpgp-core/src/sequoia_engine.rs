@@ -1101,7 +1101,7 @@ mod tests {
             .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
             .unwrap();
         let ciphertext = engine
-            .encrypt(b"hi", &[key_pair.public_key.clone()])
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
             .unwrap();
 
         assert!(armor_header_lines(&key_pair.public_key).is_empty());
@@ -1120,7 +1120,7 @@ mod tests {
             .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
             .unwrap();
         let ciphertext = engine
-            .encrypt(b"hi", &[key_pair.public_key.clone()])
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
             .unwrap();
 
         assert_eq!(
@@ -1143,7 +1143,7 @@ mod tests {
             .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
             .unwrap();
         let ciphertext = engine
-            .encrypt(b"hi", &[key_pair.public_key.clone()])
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
             .unwrap();
 
         assert_eq!(
