@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Multi-server parallel search support (comma-separated URLs)
 
 ### Fixed
+- Exporting a binary OpenPGP public key (WKD results and binary key material) re-armors it instead of replacing non-UTF-8 bytes
 - Importing or exporting a public key no longer keeps a following private key block from a combined key file
 - Attaching a public key while encrypting no longer includes a following private key block
 - Broken keyserver search functionality where WKD lookup failures (e.g., for Gmail) would block all results from keyservers
