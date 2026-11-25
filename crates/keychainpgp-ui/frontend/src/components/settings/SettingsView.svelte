@@ -89,6 +89,13 @@
     }
   }
 
+  async function saveArmorComment(event: Event) {
+    const input = event.currentTarget;
+    if (!(input instanceof HTMLInputElement)) return;
+    await settingsStore.save({ armor_comment: input.value.trim() });
+    input.value = settingsStore.settings.armor_comment;
+  }
+
   function setTheme(theme: string) {
     settingsStore.save({ theme });
     applyTheme(theme);
@@ -412,7 +419,7 @@
               type="text"
               value={settingsStore.settings.armor_comment}
               maxlength={MAX_ARMOR_COMMENT_LEN}
-              onchange={(e) => settingsStore.save({ armor_comment: e.currentTarget.value.trim() })}
+              onchange={saveArmorComment}
               class="min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1
                      text-sm focus:ring-2 focus:ring-[var(--color-primary)] focus:outline-none"
             />
