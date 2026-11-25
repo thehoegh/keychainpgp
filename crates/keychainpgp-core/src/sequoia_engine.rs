@@ -942,20 +942,29 @@ pub struct ImportedKeyMaterial {
 impl SequoiaEngine {
     /// Return public-key armor for `pgp_data`.
     ///
-    /// Stored key material is returned unchanged when it has no private key
-    /// block and no secret packets. A following private key block is removed.
-    /// A secret key with no separate public block is re-armored as a public
-    /// certificate.
+    /// ASCII-armored public key material is returned unchanged when it has a
+    /// public key block, no private key block, and no secret packets. A
+    /// following private key block is removed. Binary OpenPGP keys, and secret
+    /// keys with no separate public block, are re-armored as a public
+    /// certificate. Binary packet bytes are never passed through lossy UTF-8
+    /// conversion.
     pub fn export_public_key_text(&self, pgp_data: &[u8]) -> Result<String> {
-        let text = String::from_utf8_lossy(pgp_data);
-        let private_header = armor::is_pgp_private_key(text.as_bytes());
-        let certs = self.read_certs(pgp_data).unwrap_or_default();
-        let secret_packets = certs.iter().any(|cert| cert.is_tsk());
-        if !private_header && !secret_packets {
-            return Ok(text.into_owned());
+        let text = std::str::from_utf8(pgp_data).ok();
+        let public_blocks = text.map(armor::public_key_blocks).unwrap_or_default();
+        let private_header = text.is_some_and(|_| armor::is_pgp_private_key(pgp_data));
+        let secret_packets = self
+            .read_certs(pgp_data)
+            .unwrap_or_default()
+            .iter()
+            .any(|cert| cert.is_tsk());
+        if let Some(text) = text
+            && !public_blocks.is_empty()
+            && !private_header
+            && !secret_packets
+        {
+            return Ok(text.to_owned());
         }
 
-        let public_blocks = armor::public_key_blocks(&text);
         let bytes = self.public_only_bytes(pgp_data, &public_blocks)?;
         String::from_utf8(bytes).map_err(|e| Error::InvalidArmor {
             reason: format!("public key is not valid UTF-8: {e}"),
@@ -1569,6 +1578,49 @@ mod tests {
             .unwrap();
         let exported = engine.export_public_key_text(&key_pair.public_key).unwrap();
         assert_eq!(exported.as_bytes(), key_pair.public_key.as_slice());
+    }
+
+    #[test]
+    fn export_of_a_binary_public_key_is_rearmored() {
+        use sequoia_openpgp::serialize::MarshalInto;
+
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new(
+                "Binary Public",
+                "binary@example.com",
+            )))
+            .unwrap();
+        let cert = Cert::from_bytes(&key_pair.public_key).unwrap();
+        let binary = cert.to_vec().unwrap();
+        assert!(
+            std::str::from_utf8(&binary).is_err() || !armor::is_pgp_public_key(&binary),
+            "fixture should be a binary certificate, not ASCII armor"
+        );
+
+        let exported = engine.export_public_key_text(&binary).unwrap();
+        assert!(exported.starts_with("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(
+            !exported.contains('\u{FFFD}'),
+            "binary packet bytes must not be replaced with U+FFFD"
+        );
+        let info = engine.inspect_key(exported.as_bytes()).unwrap();
+        assert_eq!(info.fingerprint.0, key_pair.fingerprint.0);
+        assert!(!info.has_secret_key);
+
+        let ciphertext = engine
+            .encrypt(b"hello", &[exported.clone().into_bytes()])
+            .unwrap();
+        let decrypted = engine
+            .decrypt(&ciphertext, key_pair.secret_key.expose_secret(), None)
+            .unwrap();
+        assert_eq!(decrypted, b"hello");
+
+        let signed = engine
+            .sign(b"signed", key_pair.secret_key.expose_secret(), None)
+            .unwrap();
+        let verified = engine.verify(&signed, exported.as_bytes()).unwrap();
+        assert!(verified.valid);
     }
 
     #[test]
