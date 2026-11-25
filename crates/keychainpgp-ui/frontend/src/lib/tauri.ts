@@ -88,6 +88,8 @@ export interface Settings {
   keyserver_url: string;
   unverified_keyserver_url: string;
   include_armor_headers: boolean;
+  include_version_header: boolean;
+  armor_comment: string;
   locale: string;
   proxy_url: string;
   proxy_enabled: boolean;

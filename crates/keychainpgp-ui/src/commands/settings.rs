@@ -2,6 +2,7 @@
 
 use std::sync::atomic::Ordering;
 
+use keychainpgp_core::types::{ArmorHeaders, DEFAULT_ARMOR_COMMENT};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
 use tauri_plugin_store::StoreExt;
@@ -36,9 +37,15 @@ pub struct Settings {
     /// Unverified keyservers for search and upload (comma-separated).
     #[serde(default = "default_unverified_keyserver_url")]
     pub unverified_keyserver_url: String,
-    /// Include armor headers (Version, Comment) in PGP output.
-    #[serde(default = "default_true")]
+    /// Include armor headers (Version, Comment, key info) in PGP output.
+    #[serde(default)]
     pub include_armor_headers: bool,
+    /// Emit the `Version` armor header when armor headers are enabled.
+    #[serde(default = "default_true")]
+    pub include_version_header: bool,
+    /// `Comment` armor header value. Empty omits the header.
+    #[serde(default = "default_armor_comment")]
+    pub armor_comment: String,
     /// User's preferred display language. "auto" = detect from OS.
     #[serde(default = "default_locale")]
     pub locale: String,
@@ -67,6 +74,9 @@ pub struct Settings {
 
 fn default_true() -> bool {
     true
+}
+fn default_armor_comment() -> String {
+    DEFAULT_ARMOR_COMMENT.into()
 }
 fn default_locale() -> String {
     "auto".into()
@@ -103,7 +113,9 @@ impl Default for Settings {
             passphrase_cache_secs: 600,
             keyserver_url: "https://keys.openpgp.org".into(),
             unverified_keyserver_url: "https://keyserver.ubuntu.com".into(),
-            include_armor_headers: true,
+            include_armor_headers: false,
+            include_version_header: true,
+            armor_comment: default_armor_comment(),
             locale: "auto".into(),
             proxy_url: "socks5h://127.0.0.1:9050".into(),
             proxy_enabled: false,
@@ -112,6 +124,21 @@ impl Default for Settings {
             opsec_mode: false,
             opsec_window_title: "Notes".into(),
             opsec_view_timeout_secs: 30,
+        }
+    }
+}
+
+impl Settings {
+    /// Armor headers to emit. OPSEC mode suppresses all of them.
+    pub fn armor_headers(&self) -> ArmorHeaders {
+        if self.opsec_mode || !self.include_armor_headers {
+            return ArmorHeaders::default();
+        }
+        let comment = self.armor_comment.trim();
+        ArmorHeaders {
+            version: self.include_version_header,
+            comment: (!comment.is_empty()).then(|| comment.to_string()),
+            key_info: true,
         }
     }
 }
@@ -165,7 +192,8 @@ pub fn update_settings(
     // Sync settings to runtime state
     state
         .engine
-        .set_include_armor_headers(settings.include_armor_headers);
+        .set_armor_headers(settings.armor_headers())
+        .map_err(|e| e.to_string())?;
     state
         .close_to_tray
         .store(settings.close_to_tray, Ordering::Relaxed);

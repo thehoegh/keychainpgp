@@ -1,6 +1,10 @@
 import type { Settings } from "$lib/tauri";
 import { getSettings, updateSettings } from "$lib/tauri";
 
+/** Mirrors `DEFAULT_ARMOR_COMMENT` and `MAX_ARMOR_COMMENT_LEN` in keychainpgp-core. */
+export const DEFAULT_ARMOR_COMMENT = "https://github.com/thehoegh/keychainpgp";
+export const MAX_ARMOR_COMMENT_LEN = 64;
+
 const defaults: Settings = {
   auto_clear_enabled: true,
   auto_clear_delay_secs: 30,
@@ -12,7 +16,9 @@ const defaults: Settings = {
   passphrase_cache_secs: 600,
   keyserver_url: "https://keys.openpgp.org",
   unverified_keyserver_url: "https://keyserver.ubuntu.com",
-  include_armor_headers: true,
+  include_armor_headers: false,
+  include_version_header: true,
+  armor_comment: DEFAULT_ARMOR_COMMENT,
   locale: "auto",
   proxy_url: "socks5://127.0.0.1:9050",
   proxy_enabled: false,

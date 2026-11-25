@@ -1,5 +1,9 @@
 <script lang="ts">
-  import { settingsStore } from "$lib/stores/settings.svelte";
+  import {
+    settingsStore,
+    DEFAULT_ARMOR_COMMENT,
+    MAX_ARMOR_COMMENT_LEN,
+  } from "$lib/stores/settings.svelte";
   import {
     clearPassphraseCache,
     enableOpsecMode,
@@ -70,7 +74,8 @@
       | "clipboard_monitoring"
       | "encrypt_to_self"
       | "auto_clear_after_encrypt"
-      | "include_armor_headers",
+      | "include_armor_headers"
+      | "include_version_header",
   ) {
     settingsStore.save({ [key]: !settingsStore.settings[key] });
   }
@@ -373,6 +378,55 @@
         class="h-4 w-4 accent-[var(--color-primary)]"
       />
     </label>
+
+    {#if settingsStore.settings.include_armor_headers}
+      <div class="space-y-3 rounded-lg border border-[var(--color-border)] p-3">
+        {#if settingsStore.settings.opsec_mode}
+          <p class="text-xs text-[var(--color-text-secondary)]">
+            {m.settings_armor_opsec_notice()}
+          </p>
+        {/if}
+
+        <label class="flex items-center justify-between gap-3">
+          <div>
+            <p class="text-sm font-medium">{m.settings_armor_version_label()}</p>
+            <p class="text-xs text-[var(--color-text-secondary)]">
+              {m.settings_armor_version_desc()}
+            </p>
+          </div>
+          <input
+            type="checkbox"
+            checked={settingsStore.settings.include_version_header}
+            onchange={() => toggle("include_version_header")}
+            class="h-4 w-4 accent-[var(--color-primary)]"
+          />
+        </label>
+
+        <div class="space-y-1.5">
+          <p class="text-sm font-medium">{m.settings_armor_comment_label()}</p>
+          <p class="text-xs text-[var(--color-text-secondary)]">
+            {m.settings_armor_comment_desc()}
+          </p>
+          <div class="flex gap-2">
+            <input
+              type="text"
+              value={settingsStore.settings.armor_comment}
+              maxlength={MAX_ARMOR_COMMENT_LEN}
+              onchange={(e) => settingsStore.save({ armor_comment: e.currentTarget.value.trim() })}
+              class="min-w-0 flex-1 rounded border border-[var(--color-border)] bg-[var(--color-bg)] px-2 py-1
+                     text-sm focus:ring-2 focus:ring-[var(--color-primary)] focus:outline-none"
+            />
+            <button
+              class="rounded-lg border border-[var(--color-border)] px-3 py-1.5 text-xs font-medium"
+              disabled={settingsStore.settings.armor_comment === DEFAULT_ARMOR_COMMENT}
+              onclick={() => settingsStore.save({ armor_comment: DEFAULT_ARMOR_COMMENT })}
+            >
+              {m.settings_armor_comment_reset()}
+            </button>
+          </div>
+        </div>
+      </div>
+    {/if}
   </section>
 
   <!-- Security -->
