@@ -8,7 +8,8 @@
   import { keyStore } from "$lib/stores/keys.svelte";
   import { isDesktop } from "$lib/platform";
   import { appendPublicKey } from "$lib/append-public-key";
-  import { isPgpMessage, isPgpPublicKey } from "$lib/utils";
+  import { attachedPublicKey } from "$lib/public-key";
+  import { isPgpMessage } from "$lib/utils";
   import { decryptText, exportKey, signText, verifyText, writeClipboard } from "$lib/tauri";
   import * as m from "$lib/paraglide/messages.js";
 
@@ -114,8 +115,9 @@
       appStore.setStatus(m.compose_attach_missing());
       return null;
     }
-    const armored = await exportKey(fp);
-    if (!isPgpPublicKey(armored)) {
+    const exported = await exportKey(fp);
+    const armored = attachedPublicKey(exported);
+    if (!armored) {
       appStore.openModal("error", { error: m.compose_attach_invalid() });
       return null;
     }

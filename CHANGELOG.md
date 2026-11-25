@@ -15,6 +15,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 - Importing or exporting a public key no longer keeps a following private key block from a combined key file
+- Attaching a public key while encrypting no longer includes a following private key block
 - Broken keyserver search functionality where WKD lookup failures (e.g., for Gmail) would block all results from keyservers
 - App hang/database conflict when importing duplicate keys (added manual existence check)
 - Clipboard encrypt, decrypt, and sign no longer replace the message when a passphrase is copied into the dialog
