@@ -2,6 +2,7 @@
 
 use std::sync::atomic::Ordering;
 
+use keychainpgp_core::Error as CoreError;
 use keychainpgp_core::types::{ArmorHeaders, DEFAULT_ARMOR_COMMENT};
 use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, State};
@@ -130,15 +131,66 @@ impl Default for Settings {
 
 impl Settings {
     /// Armor headers to emit. OPSEC mode suppresses all of them.
+    ///
+    /// A comment the engine would reject is omitted so the version and key
+    /// info headers can still be applied.
     pub fn armor_headers(&self) -> ArmorHeaders {
         if self.opsec_mode || !self.include_armor_headers {
             return ArmorHeaders::default();
         }
-        let comment = self.armor_comment.trim();
         ArmorHeaders {
             version: self.include_version_header,
-            comment: (!comment.is_empty()).then(|| comment.to_string()),
+            comment: sanitize_armor_comment(&self.armor_comment)
+                .ok()
+                .filter(|comment| !comment.is_empty()),
             key_info: true,
+        }
+    }
+}
+
+/// Trim `raw` into a comment [`ArmorHeaders::validate`] accepts.
+///
+/// An empty string omits the header. Control characters and over-long values
+/// are rejected with the validator's reason.
+fn sanitize_armor_comment(raw: &str) -> Result<String, String> {
+    let comment = raw.trim();
+    if comment.is_empty() {
+        return Ok(String::new());
+    }
+    let headers = ArmorHeaders {
+        comment: Some(comment.to_string()),
+        ..ArmorHeaders::default()
+    };
+    match headers.validate() {
+        Ok(()) => Ok(comment.to_string()),
+        Err(CoreError::InvalidArmorHeader { reason }) => Err(reason),
+        Err(other) => Err(other.to_string()),
+    }
+}
+
+/// Settings to persist, and an error when the incoming comment cannot be stored.
+///
+/// A rejected comment is replaced with the previous safe value, or cleared when
+/// that value is also unsafe. The other fields are kept so the rest of the
+/// update can still be saved.
+fn prepare_settings_update(
+    mut incoming: Settings,
+    previous: &Settings,
+) -> (Settings, Result<(), String>) {
+    match sanitize_armor_comment(&incoming.armor_comment) {
+        Ok(comment) => {
+            incoming.armor_comment = comment;
+            (incoming, Ok(()))
+        }
+        Err(reason) => {
+            tracing::warn!("rejecting armor comment: {reason}");
+            incoming.armor_comment =
+                sanitize_armor_comment(&previous.armor_comment).unwrap_or_default();
+            // The settings store matches this prefix before reloading the snapshot.
+            (
+                incoming,
+                Err(format!("Couldn't save the armor comment: {reason}")),
+            )
         }
     }
 }
@@ -189,11 +241,14 @@ pub fn update_settings(
     state: State<'_, AppState>,
     settings: Settings,
 ) -> Result<(), String> {
-    // Sync settings to runtime state
-    state
-        .engine
-        .set_armor_headers(settings.armor_headers())
-        .map_err(|e| e.to_string())?;
+    let previous = get_settings_internal(&app, &state);
+    let (settings, comment_result) = prepare_settings_update(settings, &previous);
+
+    // Applying headers must not abort the save. Prepared comments pass
+    // validation; if this still fails, the engine keeps its previous headers.
+    if let Err(e) = state.engine.set_armor_headers(settings.armor_headers()) {
+        tracing::warn!("armor headers were not applied: {e}");
+    }
     state
         .close_to_tray
         .store(settings.close_to_tray, Ordering::Relaxed);
@@ -211,7 +266,7 @@ pub fn update_settings(
         std::fs::write(&path, json)
             .map_err(|e| format!("Failed to write portable settings: {e}"))?;
         tracing::info!("settings updated (portable)");
-        return Ok(());
+        return comment_result;
     }
 
     // Normal mode: use Tauri plugin store
@@ -223,5 +278,89 @@ pub fn update_settings(
     store.set(SETTINGS_KEY, val);
 
     tracing::info!("settings updated");
-    Ok(())
+    comment_result
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn with_comment(comment: &str) -> Settings {
+        Settings {
+            include_armor_headers: true,
+            armor_comment: comment.to_string(),
+            ..Settings::default()
+        }
+    }
+
+    #[test]
+    fn armor_headers_skip_comments_the_engine_would_reject() {
+        let long = "x".repeat(keychainpgp_core::types::MAX_ARMOR_COMMENT_LEN + 1);
+        for comment in [
+            "inner\ttab",
+            "line\nbreak",
+            "carriage\rreturn",
+            long.as_str(),
+        ] {
+            let headers = with_comment(comment).armor_headers();
+            assert!(
+                headers.validate().is_ok(),
+                "{comment:?} produced invalid headers"
+            );
+            assert!(headers.comment.is_none(), "{comment:?} was emitted");
+            assert!(headers.version, "version header should still be emitted");
+            assert!(headers.key_info);
+        }
+    }
+
+    #[test]
+    fn armor_headers_trim_a_normal_comment() {
+        let headers = with_comment("  from my laptop  ").armor_headers();
+        assert_eq!(headers.comment.as_deref(), Some("from my laptop"));
+        assert!(headers.validate().is_ok());
+    }
+
+    #[test]
+    fn rejected_comment_keeps_the_previous_value_and_other_fields() {
+        let mut incoming = with_comment("hello\tworld");
+        incoming.theme = "dark".into();
+        incoming.close_to_tray = true;
+
+        let previous = with_comment("kept");
+        let (prepared, result) = prepare_settings_update(incoming, &previous);
+        let err = result.expect_err("unsafe comment should be rejected");
+
+        assert!(err.contains("Couldn't save the armor comment"), "{err}");
+        assert!(err.contains("control characters"), "{err}");
+        assert_eq!(prepared.armor_comment, "kept");
+        assert_eq!(prepared.theme, "dark");
+        assert!(prepared.close_to_tray);
+        let engine = keychainpgp_core::SequoiaEngine::new();
+        engine
+            .set_armor_headers(prepared.armor_headers())
+            .expect("prepared headers must be safe to apply");
+        assert_eq!(prepared.armor_headers().comment.as_deref(), Some("kept"));
+    }
+
+    #[test]
+    fn rejected_comment_clears_an_unsafe_stored_value() {
+        let incoming = with_comment("also\nbad");
+        let previous = with_comment("stored\tbad");
+        let (prepared, result) = prepare_settings_update(incoming, &previous);
+
+        assert!(result.is_err());
+        assert_eq!(prepared.armor_comment, "");
+        assert!(prepared.armor_headers().comment.is_none());
+        assert!(prepared.armor_headers().validate().is_ok());
+    }
+
+    #[test]
+    fn accepted_comment_is_trimmed() {
+        let incoming = with_comment("  ok  ");
+        let previous = Settings::default();
+        let (prepared, result) = prepare_settings_update(incoming, &previous);
+
+        assert!(result.is_ok());
+        assert_eq!(prepared.armor_comment, "ok");
+    }
 }
