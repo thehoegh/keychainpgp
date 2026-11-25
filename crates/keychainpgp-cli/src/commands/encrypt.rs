@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use keychainpgp_core::{CryptoEngine, SequoiaEngine};
 use keychainpgp_keys::Keyring;
 
-pub fn run(recipient_fingerprints: &[String]) -> Result<()> {
-    let engine = SequoiaEngine::new();
+pub fn run(engine: &SequoiaEngine, recipient_fingerprints: &[String]) -> Result<()> {
     let keyring = Keyring::open_default()?;
 
     // Look up recipient public keys (by fingerprint or name/email search)
