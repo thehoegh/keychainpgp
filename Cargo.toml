@@ -16,7 +16,7 @@ authors = ["KeychainPGP Contributors"]
 license = "MIT OR Apache-2.0"
 repository = "https://github.com/thehoegh/keychainpgp"
 homepage = "https://github.com/thehoegh/keychainpgp"
-rust-version = "1.88"
+rust-version = "1.89"
 
 [workspace.dependencies]
 # Internal crates
@@ -33,7 +33,7 @@ zeroize = { version = "1", features = ["derive"] }
 secrecy = { version = "0.10", features = ["serde"] }
 
 # Storage
-rusqlite = { version = "0.39", features = ["bundled"] }
+rusqlite = { version = "0.41", features = ["bundled"] }
 keyring = "3"
 directories = "6"
 
