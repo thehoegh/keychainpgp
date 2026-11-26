@@ -11,6 +11,8 @@ let statusTimeout: ReturnType<typeof setTimeout> | null = null;
 let pendingAction: AppAction = $state(null);
 let inputMode: InputMode = $state("clipboard");
 let composeText: string = $state("");
+/** Fingerprint of the public key appended to a compose message on encrypt. */
+let composeAttachedFingerprint: string | null = $state(null);
 
 export const appStore = {
   get currentView() {
@@ -47,6 +49,13 @@ export const appStore = {
   },
   set composeText(v: string) {
     composeText = v;
+  },
+
+  get composeAttachedFingerprint() {
+    return composeAttachedFingerprint;
+  },
+  set composeAttachedFingerprint(v: string | null) {
+    composeAttachedFingerprint = v;
   },
 
   openModal(type: ModalType, props: ModalProps = {}) {

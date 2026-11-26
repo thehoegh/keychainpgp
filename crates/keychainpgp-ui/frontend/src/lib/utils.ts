@@ -71,8 +71,3 @@ export function isPgpMessage(text: string): boolean {
 export function isPgpSignedMessage(text: string): boolean {
   return text.trimStart().startsWith("-----BEGIN PGP SIGNED MESSAGE-----");
 }
-
-/** Check if text looks like a PGP public key. */
-export function isPgpPublicKey(text: string): boolean {
-  return text.trimStart().startsWith("-----BEGIN PGP PUBLIC KEY BLOCK-----");
-}

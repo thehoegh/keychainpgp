@@ -22,7 +22,11 @@ pub fn run(signer: &str) -> Result<()> {
         .read_to_end(&mut signed_data)
         .context("failed to read from stdin")?;
 
-    match engine.verify(&signed_data, &signer_record.pgp_data) {
+    let public_key = engine
+        .export_public_key_text(&signer_record.pgp_data)
+        .context("failed to export signer public key")?;
+
+    match engine.verify(&signed_data, public_key.as_bytes()) {
         Ok(result) => {
             if result.valid {
                 let name = signer_record.name.as_deref().unwrap_or("(unknown)");

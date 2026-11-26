@@ -13,6 +13,7 @@ use sequoia_openpgp::types::{KeyFlags, PublicKeyAlgorithm};
 
 use secrecy::ExposeSecret;
 
+use crate::armor;
 use crate::engine::CryptoEngine;
 use crate::error::{Error, Result};
 use crate::types::{
@@ -940,6 +941,152 @@ impl CryptoEngine for SequoiaEngine {
     }
 }
 
+/// Public key bytes from an import, with secret material kept separate.
+///
+/// `pgp_data` is safe to store and export as a public key. `secret_key` is
+/// set when the input contained a private key block or secret packets.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ImportedKeyMaterial {
+    /// ASCII-armored public key. Does not contain a private key block.
+    pub pgp_data: Vec<u8>,
+    /// Armored secret key, when the import included secret material.
+    pub secret_key: Option<Vec<u8>>,
+}
+
+impl SequoiaEngine {
+    /// Return public-key armor for `pgp_data`.
+    ///
+    /// ASCII-armored public key material is returned unchanged when it has a
+    /// public key block, no private key block, and no secret packets. A
+    /// following private key block is removed. Binary OpenPGP keys, and secret
+    /// keys with no separate public block, are re-armored as a public
+    /// certificate. Binary packet bytes are never passed through lossy UTF-8
+    /// conversion.
+    pub fn export_public_key_text(&self, pgp_data: &[u8]) -> Result<String> {
+        let text = std::str::from_utf8(pgp_data).ok();
+        let public_blocks = text.map(armor::public_key_blocks).unwrap_or_default();
+        let private_header = text.is_some_and(|_| armor::is_pgp_private_key(pgp_data));
+        let secret_packets = self
+            .read_certs(pgp_data)
+            .unwrap_or_default()
+            .iter()
+            .any(|cert| cert.is_tsk());
+        if let Some(text) = text
+            && !public_blocks.is_empty()
+            && !private_header
+            && !secret_packets
+        {
+            return Ok(text.to_owned());
+        }
+
+        let bytes = self.public_only_bytes(pgp_data, &public_blocks)?;
+        String::from_utf8(bytes).map_err(|e| Error::InvalidArmor {
+            reason: format!("public key is not valid UTF-8: {e}"),
+        })
+    }
+
+    /// Split imported armor into public key bytes and an optional secret key.
+    ///
+    /// The public half never includes a private key block. A file that starts
+    /// with a public key and continues with a private key still reports the
+    /// secret half, even though parsing only the first certificate does not.
+    pub fn split_imported_key(&self, key_data: &[u8]) -> Result<ImportedKeyMaterial> {
+        let text = std::str::from_utf8(key_data).unwrap_or("");
+        let private_blocks = armor::private_key_blocks(text);
+        let public_blocks = armor::public_key_blocks(text);
+        let certs = self.read_certs(key_data).unwrap_or_default();
+        let secret_packets = certs.iter().any(|cert| cert.is_tsk());
+        let has_secret = secret_packets || !private_blocks.is_empty();
+
+        if !has_secret {
+            return Ok(ImportedKeyMaterial {
+                pgp_data: key_data.to_vec(),
+                secret_key: None,
+            });
+        }
+
+        let pgp_data = self.public_only_bytes(key_data, &public_blocks)?;
+        let secret_key = if !private_blocks.is_empty() {
+            private_blocks.into_bytes()
+        } else {
+            key_data.to_vec()
+        };
+        Ok(ImportedKeyMaterial {
+            pgp_data,
+            secret_key: Some(secret_key),
+        })
+    }
+
+    fn read_certs(&self, data: &[u8]) -> Result<Vec<Cert>> {
+        use sequoia_openpgp::cert::CertParser;
+
+        let certs = CertParser::from_bytes(data)
+            .map_err(|e| Error::InvalidArmor {
+                reason: e.to_string(),
+            })?
+            .filter_map(std::result::Result::ok)
+            .collect();
+        Ok(certs)
+    }
+
+    /// Armor `certs` as public keys. Secret packets are omitted.
+    fn armor_public_certs(&self, certs: &[Cert]) -> Result<String> {
+        if certs.is_empty() {
+            return Err(Error::InvalidArmor {
+                reason: "no certificate found".into(),
+            });
+        }
+
+        let mut armored = String::new();
+        for cert in certs {
+            if !armored.is_empty() && !armored.ends_with('\n') {
+                armored.push('\n');
+            }
+            let mut buffer = Vec::new();
+            {
+                let mut writer = self
+                    .armor_writer(&mut buffer, sequoia_openpgp::armor::Kind::PublicKey)
+                    .map_err(|e| Error::InvalidArmor {
+                        reason: format!("armor error: {e}"),
+                    })?;
+                cert.serialize(&mut writer)
+                    .map_err(|e| Error::InvalidArmor {
+                        reason: format!("serialize error: {e}"),
+                    })?;
+                writer.finalize().map_err(|e| Error::InvalidArmor {
+                    reason: format!("armor finalize error: {e}"),
+                })?;
+            }
+            let text = String::from_utf8(buffer).map_err(|e| Error::InvalidArmor {
+                reason: format!("public key is not valid UTF-8: {e}"),
+            })?;
+            armored.push_str(&text);
+        }
+        Ok(armored)
+    }
+
+    fn public_only_bytes(&self, original: &[u8], public_blocks: &str) -> Result<Vec<u8>> {
+        if !public_blocks.is_empty() && !armor::is_pgp_private_key(public_blocks.as_bytes()) {
+            let contains_secret = self
+                .read_certs(public_blocks.as_bytes())
+                .map(|parsed| parsed.iter().any(|cert| cert.is_tsk()))
+                .unwrap_or(false);
+            if !contains_secret {
+                return Ok(public_blocks.as_bytes().to_vec());
+            }
+        }
+
+        let certs = self.read_certs(original)?;
+        let armored = self.armor_public_certs(&certs)?;
+        if armor::is_pgp_private_key(armored.as_bytes()) {
+            return Err(Error::InvalidArmor {
+                reason: "refusing to export a private key block as a public key".into(),
+            });
+        }
+        Ok(armored.into_bytes())
+    }
+}
+
 /// Helper struct for the Sequoia decryption streaming API.
 struct DecryptHelper<'a> {
     policy: &'a StandardPolicy<'static>,
@@ -1485,5 +1632,125 @@ mod tests {
             .decrypt_skesk(&encrypted, "test-passphrase-1234")
             .expect("decryption should succeed with same passphrase");
         assert_eq!(plaintext.as_slice(), decrypted.as_slice());
+    }
+
+    #[test]
+    fn export_strips_a_private_key_block_that_follows_the_public_key() {
+        use secrecy::ExposeSecret;
+
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new(
+                "Combined",
+                "combined@example.com",
+            )))
+            .unwrap();
+        let public_key = String::from_utf8(key_pair.public_key.clone()).unwrap();
+        let secret_key = String::from_utf8(key_pair.secret_key.expose_secret().clone()).unwrap();
+        assert!(public_key.starts_with("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(secret_key.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+
+        let combined = format!("{public_key}\n{secret_key}");
+        // The first certificate is the public block, so inspection does not
+        // report the private key that follows it.
+        let inspected = engine.inspect_key(combined.as_bytes()).unwrap();
+        assert!(!inspected.has_secret_key);
+        assert_eq!(inspected.fingerprint.0, key_pair.fingerprint.0);
+
+        let exported = engine.export_public_key_text(combined.as_bytes()).unwrap();
+        assert!(exported.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(!exported.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        assert!(!exported.contains("PRIVATE KEY"));
+
+        let material = engine.split_imported_key(combined.as_bytes()).unwrap();
+        let stored = String::from_utf8(material.pgp_data.clone()).unwrap();
+        assert!(!stored.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        assert!(stored.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        let secret = String::from_utf8(material.secret_key.unwrap()).unwrap();
+        assert!(secret.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        assert!(!secret.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+
+        let ciphertext = engine.encrypt(b"hello", &[material.pgp_data]).unwrap();
+        let decrypted = engine
+            .decrypt(&ciphertext, secret.as_bytes(), None)
+            .unwrap();
+        assert_eq!(decrypted, b"hello");
+    }
+
+    #[test]
+    fn export_of_a_public_key_is_unchanged() {
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new(
+                "Public Only",
+                "public@example.com",
+            )))
+            .unwrap();
+        let exported = engine.export_public_key_text(&key_pair.public_key).unwrap();
+        assert_eq!(exported.as_bytes(), key_pair.public_key.as_slice());
+    }
+
+    #[test]
+    fn export_of_a_binary_public_key_is_rearmored() {
+        use sequoia_openpgp::serialize::MarshalInto;
+
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new(
+                "Binary Public",
+                "binary@example.com",
+            )))
+            .unwrap();
+        let cert = Cert::from_bytes(&key_pair.public_key).unwrap();
+        let binary = cert.to_vec().unwrap();
+        assert!(
+            std::str::from_utf8(&binary).is_err() || !armor::is_pgp_public_key(&binary),
+            "fixture should be a binary certificate, not ASCII armor"
+        );
+
+        let exported = engine.export_public_key_text(&binary).unwrap();
+        assert!(exported.starts_with("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(
+            !exported.contains('\u{FFFD}'),
+            "binary packet bytes must not be replaced with U+FFFD"
+        );
+        let info = engine.inspect_key(exported.as_bytes()).unwrap();
+        assert_eq!(info.fingerprint.0, key_pair.fingerprint.0);
+        assert!(!info.has_secret_key);
+
+        let ciphertext = engine
+            .encrypt(b"hello", &[exported.clone().into_bytes()])
+            .unwrap();
+        let decrypted = engine
+            .decrypt(&ciphertext, key_pair.secret_key.expose_secret(), None)
+            .unwrap();
+        assert_eq!(decrypted, b"hello");
+
+        let signed = engine
+            .sign(b"signed", key_pair.secret_key.expose_secret(), None)
+            .unwrap();
+        let verified = engine.verify(&signed, exported.as_bytes()).unwrap();
+        assert!(verified.valid);
+    }
+
+    #[test]
+    fn export_of_a_secret_key_is_a_public_certificate() {
+        use secrecy::ExposeSecret;
+
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new(
+                "Secret Only",
+                "secret@example.com",
+            )))
+            .unwrap();
+        let exported = engine
+            .export_public_key_text(key_pair.secret_key.expose_secret())
+            .unwrap();
+        assert!(exported.contains("-----BEGIN PGP PUBLIC KEY BLOCK-----"));
+        assert!(!exported.contains("-----BEGIN PGP PRIVATE KEY BLOCK-----"));
+        let info = engine.inspect_key(exported.as_bytes()).unwrap();
+        assert!(!info.has_secret_key);
+        assert_eq!(info.fingerprint.0, key_pair.fingerprint.0);
     }
 }
