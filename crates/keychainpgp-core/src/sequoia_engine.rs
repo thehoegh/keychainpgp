@@ -1,5 +1,5 @@
 use std::io::Write;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{PoisonError, RwLock};
 
 use sequoia_openpgp::Cert;
 use sequoia_openpgp::cert::prelude::*;
@@ -17,60 +17,89 @@ use crate::armor;
 use crate::engine::CryptoEngine;
 use crate::error::{Error, Result};
 use crate::types::{
-    CertInfo, Fingerprint, GeneratedKeyPair, KeyAlgorithm, KeyCapability, KeyGenOptions,
-    SubkeyInfo, UserId, VerifyResult,
+    ArmorHeaders, CertInfo, Fingerprint, GeneratedKeyPair, KeyAlgorithm, KeyCapability,
+    KeyGenOptions, SubkeyInfo, UserId, VerifyResult,
 };
 
 /// Sequoia-PGP backed implementation of [`CryptoEngine`].
 pub struct SequoiaEngine {
     policy: StandardPolicy<'static>,
-    include_armor_headers: AtomicBool,
+    armor_headers: RwLock<ArmorHeaders>,
 }
 
 impl SequoiaEngine {
-    /// Create a new `SequoiaEngine` with the standard policy.
+    /// Create a new `SequoiaEngine` with the standard policy and no armor headers.
     #[must_use]
     pub fn new() -> Self {
         Self {
             policy: StandardPolicy::new(),
-            include_armor_headers: AtomicBool::new(true),
+            armor_headers: RwLock::new(ArmorHeaders::default()),
         }
     }
 
-    /// Enable or disable promotional armor headers (Comment, Version) in PGP output.
-    pub fn set_include_armor_headers(&self, enabled: bool) {
-        self.include_armor_headers.store(enabled, Ordering::Relaxed);
+    /// Create a new `SequoiaEngine` that emits the given armor headers.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidArmorHeader`] if the headers fail validation.
+    pub fn with_armor_headers(headers: ArmorHeaders) -> Result<Self> {
+        let engine = Self::new();
+        engine.set_armor_headers(headers)?;
+        Ok(engine)
     }
 
-    /// Create an armor writer, optionally including promotional headers.
+    /// Replace the armor headers emitted in PGP output.
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidArmorHeader`] if the headers fail validation;
+    /// the previous headers are kept.
+    pub fn set_armor_headers(&self, headers: ArmorHeaders) -> Result<()> {
+        headers.validate()?;
+        *self
+            .armor_headers
+            .write()
+            .unwrap_or_else(PoisonError::into_inner) = headers;
+        Ok(())
+    }
+
+    /// Create an armor writer with the configured headers.
     fn armor_writer<'a, W: Write + Send + Sync + 'a>(
         &self,
         output: &'a mut W,
         kind: sequoia_openpgp::armor::Kind,
     ) -> std::result::Result<sequoia_openpgp::armor::Writer<&'a mut W>, std::io::Error> {
-        self.armor_writer_with_extra(output, kind, &[])
+        self.armor_writer_for_cert(output, kind, None)
     }
 
-    /// Create an armor writer with additional headers (e.g. key name, fingerprint).
-    fn armor_writer_with_extra<'a, W: Write + Send + Sync + 'a>(
+    /// Create an armor writer with the configured headers, adding the user ID
+    /// and fingerprint of `cert` when key info headers are enabled.
+    fn armor_writer_for_cert<'a, W: Write + Send + Sync + 'a>(
         &self,
         output: &'a mut W,
         kind: sequoia_openpgp::armor::Kind,
-        extra: &[(&str, &str)],
+        cert: Option<&Cert>,
     ) -> std::result::Result<sequoia_openpgp::armor::Writer<&'a mut W>, std::io::Error> {
-        if self.include_armor_headers.load(Ordering::Relaxed) {
-            let mut headers = vec![
-                (
-                    "Version",
-                    concat!("KeychainPGP ", env!("CARGO_PKG_VERSION")),
-                ),
-                ("Comment", "https://github.com/thehoegh/keychainpgp"),
-            ];
-            headers.extend_from_slice(extra);
-            sequoia_openpgp::armor::Writer::with_headers(output, kind, headers)
-        } else {
-            sequoia_openpgp::armor::Writer::new(output, kind)
+        let config = self
+            .armor_headers
+            .read()
+            .unwrap_or_else(PoisonError::into_inner);
+        let mut headers: Vec<(&str, String)> = Vec::new();
+        if config.version {
+            headers.push((
+                "Version",
+                concat!("KeychainPGP ", env!("CARGO_PKG_VERSION")).into(),
+            ));
         }
+        if let Some(comment) = &config.comment {
+            headers.push(("Comment", comment.clone()));
+        }
+        if let Some(cert) = cert.filter(|_| config.key_info) {
+            let uid = cert.userids().next().map(|u| u.userid().to_string());
+            if let Some(uid) = uid.filter(|u| !u.chars().any(char::is_control)) {
+                headers.push(("Comment", uid));
+            }
+            headers.push(("Fingerprint", cert.fingerprint().to_hex()));
+        }
+        sequoia_openpgp::armor::Writer::with_headers(output, kind, headers)
     }
 
     /// Parse decrypted backup bytes into individual certificates.
@@ -99,19 +128,11 @@ impl SequoiaEngine {
             // Serialize public key
             let mut public_bytes = Vec::new();
             {
-                let uid_str = cert
-                    .userids()
-                    .next()
-                    .map(|u| u.userid().to_string())
-                    .unwrap_or_default();
-                let fp_hex = cert.fingerprint().to_hex();
-                let extra: Vec<(&str, &str)> =
-                    vec![("Comment", &uid_str), ("Fingerprint", &fp_hex)];
                 let mut writer = self
-                    .armor_writer_with_extra(
+                    .armor_writer_for_cert(
                         &mut public_bytes,
                         sequoia_openpgp::armor::Kind::PublicKey,
-                        &extra,
+                        Some(cert),
                     )
                     .map_err(|e| Error::InvalidArmor {
                         reason: format!("serialization error: {e}"),
@@ -415,18 +436,11 @@ impl CryptoEngine for SequoiaEngine {
         // Serialize public key (certificate)
         let mut public_key = Vec::new();
         {
-            let uid_str = cert
-                .userids()
-                .next()
-                .map(|u| u.userid().to_string())
-                .unwrap_or_default();
-            let fp_hex = cert.fingerprint().to_hex();
-            let extra: Vec<(&str, &str)> = vec![("Comment", &uid_str), ("Fingerprint", &fp_hex)];
             let mut writer = self
-                .armor_writer_with_extra(
+                .armor_writer_for_cert(
                     &mut public_key,
                     sequoia_openpgp::armor::Kind::PublicKey,
-                    &extra,
+                    Some(&cert),
                 )
                 .map_err(|e| Error::KeyGeneration {
                     reason: format!("armor error: {e}"),
@@ -1216,6 +1230,102 @@ impl VerificationHelper for VerifyHelper<'_> {
 mod tests {
     use super::*;
     use crate::types::{KeyGenOptions, UserId};
+
+    /// Return the armor header lines between the BEGIN line and the blank separator.
+    fn armor_header_lines(armored: &[u8]) -> Vec<String> {
+        String::from_utf8_lossy(armored)
+            .lines()
+            .skip(1)
+            .take_while(|l| !l.is_empty())
+            .map(String::from)
+            .collect()
+    }
+
+    #[test]
+    fn test_armor_headers_default_to_none() {
+        let engine = SequoiaEngine::new();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
+            .unwrap();
+        let ciphertext = engine
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
+            .unwrap();
+
+        assert!(armor_header_lines(&key_pair.public_key).is_empty());
+        assert!(armor_header_lines(&ciphertext).is_empty());
+    }
+
+    #[test]
+    fn test_armor_headers_custom_comment_and_version() {
+        let engine = SequoiaEngine::with_armor_headers(ArmorHeaders {
+            version: true,
+            comment: Some("Sent from my laptop".into()),
+            key_info: false,
+        })
+        .unwrap();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
+            .unwrap();
+        let ciphertext = engine
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
+            .unwrap();
+
+        assert_eq!(
+            armor_header_lines(&ciphertext),
+            vec![
+                concat!("Version: KeychainPGP ", env!("CARGO_PKG_VERSION")).to_string(),
+                "Comment: Sent from my laptop".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn test_armor_headers_key_info_only_on_public_keys() {
+        let engine = SequoiaEngine::with_armor_headers(ArmorHeaders {
+            key_info: true,
+            ..ArmorHeaders::default()
+        })
+        .unwrap();
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
+            .unwrap();
+        let ciphertext = engine
+            .encrypt(b"hi", std::slice::from_ref(&key_pair.public_key))
+            .unwrap();
+
+        assert_eq!(
+            armor_header_lines(&key_pair.public_key),
+            vec![
+                "Comment: A <a@example.com>".to_string(),
+                format!("Fingerprint: {}", key_pair.fingerprint.0),
+            ]
+        );
+        assert!(armor_header_lines(&ciphertext).is_empty());
+    }
+
+    #[test]
+    fn test_armor_headers_reject_unsafe_comments() {
+        let engine = SequoiaEngine::new();
+        for comment in [
+            "line\nVersion: injected",
+            "carriage\rreturn",
+            "   ",
+            &"x".repeat(crate::types::MAX_ARMOR_COMMENT_LEN + 1),
+        ] {
+            let result = engine.set_armor_headers(ArmorHeaders {
+                comment: Some(comment.to_string()),
+                ..ArmorHeaders::default()
+            });
+            assert!(
+                matches!(result, Err(Error::InvalidArmorHeader { .. })),
+                "accepted {comment:?}"
+            );
+        }
+        let key_pair = engine
+            .generate_key_pair(KeyGenOptions::new(UserId::new("A", "a@example.com")))
+            .unwrap();
+        assert!(armor_header_lines(&key_pair.public_key).is_empty());
+    }
 
     #[test]
     fn test_generate_ed25519_key_pair() {

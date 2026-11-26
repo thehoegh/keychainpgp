@@ -5,8 +5,11 @@ use keychainpgp_core::{CryptoEngine, SequoiaEngine};
 use keychainpgp_keys::Keyring;
 use secrecy::ExposeSecret;
 
-pub fn run(key_fingerprint: Option<&str>, passphrase: Option<&str>) -> Result<()> {
-    let engine = SequoiaEngine::new();
+pub fn run(
+    engine: &SequoiaEngine,
+    key_fingerprint: Option<&str>,
+    passphrase: Option<&str>,
+) -> Result<()> {
     let keyring = Keyring::open_default()?;
 
     // Find the signing key

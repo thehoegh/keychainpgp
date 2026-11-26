@@ -2,13 +2,14 @@
 
 use std::sync::atomic::Ordering;
 
+use keychainpgp_core::types::ArmorHeaders;
 #[cfg(desktop)]
 use tauri::Manager;
 use tauri::{AppHandle, State};
 
 use crate::state::AppState;
 
-/// Enable OPSEC mode: change window title, set flag.
+/// Enable OPSEC mode: change window title, strip armor headers, set flag.
 #[tauri::command]
 pub fn enable_opsec_mode(
     #[allow(unused_variables)] app: AppHandle,
@@ -16,6 +17,10 @@ pub fn enable_opsec_mode(
     #[allow(unused_variables)] title: Option<String>,
 ) -> Result<bool, String> {
     state.opsec_mode.store(true, Ordering::SeqCst);
+    state
+        .engine
+        .set_armor_headers(ArmorHeaders::default())
+        .map_err(|e| e.to_string())?;
 
     #[cfg(desktop)]
     {

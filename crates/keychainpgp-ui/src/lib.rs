@@ -207,9 +207,9 @@ pub fn run() {
                 };
 
             if let Some(settings) = loaded_settings {
-                app_state
-                    .engine
-                    .set_include_armor_headers(settings.include_armor_headers);
+                if let Err(e) = app_state.engine.set_armor_headers(settings.armor_headers()) {
+                    tracing::warn!("ignoring stored armor headers: {e}");
+                }
                 if settings.opsec_mode {
                     app_state.opsec_mode.store(true, Ordering::SeqCst);
                 }

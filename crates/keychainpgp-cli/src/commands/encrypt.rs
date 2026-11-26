@@ -4,8 +4,7 @@ use anyhow::{Context, Result};
 use keychainpgp_core::{CryptoEngine, SequoiaEngine};
 use keychainpgp_keys::Keyring;
 
-pub fn run(recipient_fingerprints: &[String]) -> Result<()> {
-    let engine = SequoiaEngine::new();
+pub fn run(engine: &SequoiaEngine, recipient_fingerprints: &[String]) -> Result<()> {
     let keyring = Keyring::open_default()?;
 
     // Look up recipient public keys (by fingerprint or name/email search)
@@ -13,7 +12,7 @@ pub fn run(recipient_fingerprints: &[String]) -> Result<()> {
     for query in recipient_fingerprints {
         // Try exact fingerprint first
         if let Some(record) = keyring.get_key(query)? {
-            recipient_keys.push(public_key(&engine, &record.pgp_data, query)?);
+            recipient_keys.push(public_key(engine, &record.pgp_data, query)?);
             continue;
         }
 
@@ -23,7 +22,7 @@ pub fn run(recipient_fingerprints: &[String]) -> Result<()> {
             0 => anyhow::bail!("no key found matching '{query}'"),
             1 => {
                 let record = results.into_iter().next().unwrap();
-                recipient_keys.push(public_key(&engine, &record.pgp_data, query)?);
+                recipient_keys.push(public_key(engine, &record.pgp_data, query)?);
             }
             n => {
                 eprintln!("Ambiguous recipient '{query}' matched {n} keys:");

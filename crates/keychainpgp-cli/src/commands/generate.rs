@@ -5,8 +5,12 @@ use keychainpgp_keys::Keyring;
 use keychainpgp_keys::storage::KeyRecord;
 use secrecy::{ExposeSecret, SecretBox};
 
-pub fn run(name: &str, email: &str, passphrase: Option<&str>) -> Result<()> {
-    let engine = SequoiaEngine::new();
+pub fn run(
+    engine: &SequoiaEngine,
+    name: &str,
+    email: &str,
+    passphrase: Option<&str>,
+) -> Result<()> {
     let user_id = UserId::new(name, email);
     let mut options = KeyGenOptions::new(user_id);
 

@@ -282,3 +282,46 @@ impl KeyGenOptions {
         self
     }
 }
+
+/// Suggested `Comment` armor header value pointing at the project.
+pub const DEFAULT_ARMOR_COMMENT: &str = "https://github.com/thehoegh/keychainpgp";
+
+/// Maximum length of a `Comment` armor header value, in characters.
+///
+/// Keeps `Comment: <value>` within the 76-character armor line limit.
+pub const MAX_ARMOR_COMMENT_LEN: usize = 64;
+
+/// Which ASCII armor headers to emit. The default emits none.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+pub struct ArmorHeaders {
+    /// Emit `Version: KeychainPGP <version>`.
+    pub version: bool,
+    /// Emit `Comment: <value>`.
+    pub comment: Option<String>,
+    /// Emit the user ID and fingerprint on armored public keys.
+    pub key_info: bool,
+}
+
+impl ArmorHeaders {
+    /// Check that the comment is a single, non-empty line within
+    /// [`MAX_ARMOR_COMMENT_LEN`].
+    ///
+    /// # Errors
+    /// Returns [`Error::InvalidArmorHeader`](crate::Error::InvalidArmorHeader)
+    /// describing the first violation.
+    pub fn validate(&self) -> crate::Result<()> {
+        let Some(comment) = &self.comment else {
+            return Ok(());
+        };
+        let reason = if comment.trim().is_empty() {
+            "comment is empty".into()
+        } else if comment.chars().any(char::is_control) {
+            "comment must be a single line without control characters".into()
+        } else if comment.chars().count() > MAX_ARMOR_COMMENT_LEN {
+            format!("comment exceeds {MAX_ARMOR_COMMENT_LEN} characters")
+        } else {
+            return Ok(());
+        };
+        Err(crate::Error::InvalidArmorHeader { reason })
+    }
+}

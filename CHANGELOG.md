@@ -8,10 +8,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- Settings and CLI flags for the armor `Version` and `Comment` headers, including a custom comment
 - Compose can attach a public key from the keyring to the end of the message when encrypting
 - Local aliases for keys, shown in place of the certificate name and included in search and sync
 - Full HKP/VKS keyserver support with machine-readable index parsing
 - Multi-server parallel search support (comma-separated URLs)
+
+### Changed
+- Armor headers are off by default, and OPSEC mode omits them
 
 ### Fixed
 - Exporting a binary OpenPGP public key (WKD results and binary key material) re-armors it instead of replacing non-UTF-8 bytes

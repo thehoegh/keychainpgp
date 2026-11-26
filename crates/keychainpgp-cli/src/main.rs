@@ -2,7 +2,9 @@
 
 mod commands;
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
+use keychainpgp_core::SequoiaEngine;
+use keychainpgp_core::types::ArmorHeaders;
 use tracing_subscriber::EnvFilter;
 
 #[derive(Parser)]
@@ -36,6 +38,13 @@ enum Commands {
         /// Protect with a passphrase (WARNING: visible in process list; prefer interactive prompt)
         #[arg(long)]
         passphrase: Option<String>,
+
+        /// Add user ID and fingerprint armor headers to the public key
+        #[arg(long)]
+        key_info: bool,
+
+        #[command(flatten)]
+        armor: ArmorArgs,
     },
 
     /// Encrypt a message (reads from stdin, writes to stdout)
@@ -43,6 +52,9 @@ enum Commands {
         /// Recipient key fingerprint(s)
         #[arg(short, long, required = true)]
         recipient: Vec<String>,
+
+        #[command(flatten)]
+        armor: ArmorArgs,
     },
 
     /// Decrypt a message (reads from stdin, writes to stdout)
@@ -61,6 +73,9 @@ enum Commands {
         /// Passphrase for the private key (WARNING: visible in process list; prefer interactive prompt)
         #[arg(long)]
         passphrase: Option<String>,
+
+        #[command(flatten)]
+        armor: ArmorArgs,
     },
 
     /// Verify a signed message (reads from stdin, writes content to stdout)
@@ -126,6 +141,28 @@ enum KeysAction {
     },
 }
 
+/// ASCII armor headers for commands that write armored output. None by default.
+#[derive(Args)]
+struct ArmorArgs {
+    /// Add a "Version: KeychainPGP <version>" armor header
+    #[arg(long)]
+    emit_version: bool,
+
+    /// Add a "Comment: <TEXT>" armor header
+    #[arg(long, value_name = "TEXT")]
+    comment: Option<String>,
+}
+
+impl ArmorArgs {
+    fn engine(self, key_info: bool) -> anyhow::Result<SequoiaEngine> {
+        Ok(SequoiaEngine::with_armor_headers(ArmorHeaders {
+            version: self.emit_version,
+            comment: self.comment,
+            key_info,
+        })?)
+    }
+}
+
 /// Prompt for a passphrase interactively (hidden input).
 /// Returns `None` if the user enters an empty string.
 fn prompt_passphrase(prompt: &str) -> Option<String> {
@@ -166,13 +203,18 @@ fn main() -> anyhow::Result<()> {
             name,
             email,
             passphrase,
+            key_info,
+            armor,
         } => {
+            let engine = armor.engine(key_info)?;
             let passphrase =
                 resolve_passphrase(passphrase, "Passphrase (leave empty for no protection): ");
-            commands::generate::run(&name, &email, passphrase.as_deref())?;
+            commands::generate::run(&engine, &name, &email, passphrase.as_deref())?;
         }
 
-        Commands::Encrypt { recipient } => commands::encrypt::run(&recipient)?,
+        Commands::Encrypt { recipient, armor } => {
+            commands::encrypt::run(&armor.engine(false)?, &recipient)?;
+        }
 
         Commands::Decrypt { passphrase } => {
             let passphrase =
@@ -180,10 +222,15 @@ fn main() -> anyhow::Result<()> {
             commands::decrypt::run(passphrase.as_deref())?;
         }
 
-        Commands::Sign { key, passphrase } => {
+        Commands::Sign {
+            key,
+            passphrase,
+            armor,
+        } => {
+            let engine = armor.engine(false)?;
             let passphrase =
                 resolve_passphrase(passphrase, "Passphrase (leave empty if key has none): ");
-            commands::sign::run(key.as_deref(), passphrase.as_deref())?;
+            commands::sign::run(&engine, key.as_deref(), passphrase.as_deref())?;
         }
 
         Commands::Verify { signer } => commands::verify::run(&signer)?,
