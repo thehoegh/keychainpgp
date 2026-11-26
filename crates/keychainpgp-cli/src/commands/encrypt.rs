@@ -12,7 +12,7 @@ pub fn run(engine: &SequoiaEngine, recipient_fingerprints: &[String]) -> Result<
     for query in recipient_fingerprints {
         // Try exact fingerprint first
         if let Some(record) = keyring.get_key(query)? {
-            recipient_keys.push(public_key(&engine, &record.pgp_data, query)?);
+            recipient_keys.push(public_key(engine, &record.pgp_data, query)?);
             continue;
         }
 
@@ -22,7 +22,7 @@ pub fn run(engine: &SequoiaEngine, recipient_fingerprints: &[String]) -> Result<
             0 => anyhow::bail!("no key found matching '{query}'"),
             1 => {
                 let record = results.into_iter().next().unwrap();
-                recipient_keys.push(public_key(&engine, &record.pgp_data, query)?);
+                recipient_keys.push(public_key(engine, &record.pgp_data, query)?);
             }
             n => {
                 eprintln!("Ambiguous recipient '{query}' matched {n} keys:");
